@@ -63,16 +63,18 @@ export async function fetchUpstreamAuthToken({
 	const resp = await fetch(upstream_url, {
 		body: new URLSearchParams({ client_id, client_secret, code, redirect_uri }).toString(),
 		headers: {
+			"Accept": "application/json",
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
 		method: "POST",
 	});
+
 	if (!resp.ok) {
-		console.log(await resp.text());
 		return [null, new Response("Failed to fetch access token", { status: 500 })];
 	}
-	const body = await resp.formData();
-	const accessToken = body.get("access_token") as string;
+
+	const body = await resp.json() as { id_token?: string };
+	const accessToken = body.id_token;
 	if (!accessToken) {
 		return [null, new Response("Missing access token", { status: 400 })];
 	}
@@ -82,7 +84,7 @@ export async function fetchUpstreamAuthToken({
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
 export type Props = {
-	login: string;
+	sub: string;
 	name: string;
 	email: string;
 	accessToken: string;

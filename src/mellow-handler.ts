@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
-import { Octokit } from "octokit";
 import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl, type Props } from "./utils";
 import {
 	addApprovedClient,
@@ -29,7 +28,7 @@ app.get("/authorize", async (c) => {
 		// Skip approval dialog but still create secure state and bind to session
 		const { stateToken } = await createOAuthState(oauthReqInfo, c.env.OAUTH_KV);
 		const { setCookie: sessionBindingCookie } = await bindStateToSession(stateToken);
-		return redirectToGithub(c.req.raw, stateToken, { "Set-Cookie": sessionBindingCookie });
+		return redirectToMellow(c.req.raw, stateToken, { "Set-Cookie": sessionBindingCookie });
 	}
 
 	// Generate CSRF protection for the approval form
@@ -39,9 +38,8 @@ app.get("/authorize", async (c) => {
 		client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
 		csrfToken,
 		server: {
-			description: "This is a demo MCP Remote Server using GitHub for authentication.",
-			logo: "https://avatars.githubusercontent.com/u/314135?s=200&v=4",
-			name: "Cloudflare GitHub MCP Server",
+			description: "MCP Remote Server using Mellow for authentication.",
+			name: "Mellow MCP Server",
 		},
 		setCookie,
 		state: { oauthReqInfo },
@@ -89,9 +87,8 @@ app.post("/authorize", async (c) => {
 		headers.append("Set-Cookie", approvedClientCookie);
 		headers.append("Set-Cookie", sessionBindingCookie);
 
-		return redirectToGithub(c.req.raw, stateToken, Object.fromEntries(headers));
+		return redirectToMellow(c.req.raw, stateToken, Object.fromEntries(headers));
 	} catch (error: any) {
-		console.error("POST /authorize error:", error);
 		if (error instanceof OAuthError) {
 			return error.toResponse();
 		}
@@ -100,7 +97,7 @@ app.post("/authorize", async (c) => {
 	}
 });
 
-async function redirectToGithub(
+async function redirectToMellow(
 	request: Request,
 	stateToken: string,
 	headers: Record<string, string> = {},
@@ -109,11 +106,11 @@ async function redirectToGithub(
 		headers: {
 			...headers,
 			location: getUpstreamAuthorizeUrl({
-				client_id: env.GITHUB_CLIENT_ID,
+				client_id: env.MELLOW_CLIENT_ID,
 				redirect_uri: new URL("/callback", request.url).href,
-				scope: "read:user",
+				scope: "openid profile email",
 				state: stateToken,
-				upstream_url: "https://github.com/login/oauth/authorize",
+				upstream_url: `${env.MELLOW_BASE_URL}/authorize`,
 			}),
 		},
 		status: 302,
@@ -123,12 +120,12 @@ async function redirectToGithub(
 /**
  * OAuth Callback Endpoint
  *
- * This route handles the callback from GitHub after user authentication.
+ * This route handles the callback from Mellow after user authentication.
  * It exchanges the temporary code for an access token, then stores some
  * user metadata & the auth token as part of the 'props' on the token passed
  * down to the client. It ends by redirecting the client back to _its_ callback URL
  *
- * SECURITY: This endpoint validates that the state parameter from GitHub
+ * SECURITY: This endpoint validates that the state parameter from Mellow
  * matches both:
  * 1. A valid state token in KV (proves it was created by our server)
  * 2. The __Host-CONSENTED_STATE cookie (proves THIS browser consented to it)
@@ -160,17 +157,25 @@ app.get("/callback", async (c) => {
 
 	// Exchange the code for an access token
 	const [accessToken, errResponse] = await fetchUpstreamAuthToken({
-		client_id: c.env.GITHUB_CLIENT_ID,
-		client_secret: c.env.GITHUB_CLIENT_SECRET,
+		client_id: c.env.MELLOW_CLIENT_ID,
+		client_secret: c.env.MELLOW_CLIENT_SECRET,
 		code: c.req.query("code"),
 		redirect_uri: new URL("/callback", c.req.url).href,
-		upstream_url: "https://github.com/login/oauth/access_token",
+		upstream_url: `${c.env.MELLOW_BASE_URL}/token`,
 	});
+
 	if (errResponse) return errResponse;
 
-	// Fetch the user info from GitHub
-	const user = await new Octokit({ auth: accessToken }).rest.users.getAuthenticated();
-	const { login, name, email } = user.data;
+	// Fetch the user info from Mellow
+	const userResponse = await fetch(`${c.env.MELLOW_BASE_URL}/userinfo`, {
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+		},
+	});
+	if (!userResponse.ok) {
+		return c.text("Failed to fetch user info", 500);
+	}
+	const { sub, name, email } = await userResponse.json() as { sub: string; name: string; email: string };
 
 	// Return back to the MCP client a new token
 	const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
@@ -181,12 +186,12 @@ app.get("/callback", async (c) => {
 		props: {
 			accessToken,
 			email,
-			login,
 			name,
+			sub,
 		} as Props,
 		request: oauthReqInfo,
 		scope: oauthReqInfo.scope,
-		userId: login,
+		userId: sub,
 	});
 
 	// Clear the session binding cookie (one-time use) by creating response with headers
@@ -201,4 +206,4 @@ app.get("/callback", async (c) => {
 	});
 });
 
-export { app as GitHubHandler };
+export { app as MellowHandler };

@@ -19,8 +19,8 @@
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 * 
 	 * Commands to set secrets:
-	 * npx wrangler secret put GITHUB_CLIENT_ID
-	 * npx wrangler secret put GITHUB_CLIENT_SECRET
+	 * npx wrangler secret put MELLOW_CLIENT_ID
+	 * npx wrangler secret put MELLOW_CLIENT_SECRET
 	 * npx wrangler secret put COOKIE_ENCRYPTION_KEY
 	 */
 	"migrations": [
@@ -42,14 +42,15 @@
 	"kv_namespaces": [
 		{
 			"binding": "OAUTH_KV",
-			"id": "<Add-KV-ID>"
+			"id": "275cd4aed30a46bfbee1111f1b3bf63f"
 		}
 	],
-	"ai": {
-		"binding": "AI"
-	},
 	"observability": {
 		"enabled": true
+	},
+	"vars": {
+		"MELLOW_API_BASE_URL": "https://my.mellow.io/api",
+		"MELLOW_BASE_URL": "https://wlcm.mellow.io"
 	},
 	"dev": {
 		"port": 8788
