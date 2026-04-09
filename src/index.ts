@@ -14,12 +14,21 @@ import { registerReferenceTools } from "./tools/reference"
 import { registerTaskGroupTools } from "./tools/task-groups"
 import { registerTaskTools } from "./tools/tasks"
 import { registerWebhookTools } from "./tools/webhooks"
+import { registerScoutAiTaskTools } from "./tools/scout/ai-tasks"
+import { registerScoutApplicationTools } from "./tools/scout/applications"
+import { registerScoutAttachmentTools } from "./tools/scout/attachments"
+import { registerScoutCompanyTools } from "./tools/scout/companies"
+import { registerScoutLookupTools } from "./tools/scout/lookup"
+import { registerScoutPoolTools } from "./tools/scout/pool"
+import { registerScoutPositionTools } from "./tools/scout/positions"
+import { registerScoutPromoPostTools } from "./tools/scout/promo-posts"
+import { registerScoutQuizTools } from "./tools/scout/quiz"
 import { refreshUpstreamToken, type Props } from "./utils"
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
-		name: "Mellow MCP Server",
-		version: "1.0.0",
+		name: "Mellow & Scout MCP Server",
+		version: "1.1.0",
 	})
 
 	async init() {
@@ -39,6 +48,21 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 			registerWebhookTools(this.server, client)
 			registerProfileTools(this.server, client)
 			registerChatGptTools(this.server, client)
+
+			const scoutClient = createMellowClient(
+				this.env.SCOUT_API_BASE_URL,
+				this.props!.accessToken,
+			)
+
+			registerScoutPositionTools(this.server, scoutClient)
+			registerScoutApplicationTools(this.server, scoutClient)
+			registerScoutAiTaskTools(this.server, scoutClient)
+			registerScoutPromoPostTools(this.server, scoutClient)
+			registerScoutPoolTools(this.server, scoutClient)
+			registerScoutQuizTools(this.server, scoutClient)
+			registerScoutAttachmentTools(this.server, scoutClient)
+			registerScoutCompanyTools(this.server, scoutClient)
+			registerScoutLookupTools(this.server, scoutClient)
 		} catch (error) {
 			console.error("MCP init failed:", error)
 			throw error

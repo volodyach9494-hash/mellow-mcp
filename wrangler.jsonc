@@ -50,7 +50,8 @@
 	},
 	"vars": {
 		"MELLOW_API_BASE_URL": "https://my.mellow.io/api",
-		"MELLOW_BASE_URL": "https://wlcm.mellow.io"
+		"MELLOW_BASE_URL": "https://wlcm.mellow.io",
+		"SCOUT_API_BASE_URL": "https://aiscout-api.mellow.io/api"
 	},
 	"dev": {
 		"port": 8788
