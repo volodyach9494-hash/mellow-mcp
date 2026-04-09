@@ -52,7 +52,10 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 			projectDuration: z.enum(["longTerm", "shortTerm"]).describe("Project duration"),
 			isBudgetNegotiable: z.boolean().describe("Whether budget is negotiable"),
 			projectType: z.enum(["ongoing", "one-time"]).describe("Project type"),
-			workload: z.string().describe("Workload. For ongoing: under_20_hrs_per_week, between_20_30_hrs_per_week, over_30_hrs_per_week. For one-time: few_days, one_two_weeks, more_two_weeks"),
+			workload: z.enum([
+				"under_20_hrs_per_week", "between_20_30_hrs_per_week", "over_30_hrs_per_week",
+				"few_days", "one_two_weeks", "more_two_weeks",
+			]).describe("Workload. Must match projectType: ongoing → hrs options, one-time → days/weeks options"),
 			experienceLevel: z.number().min(1).max(4).describe("Experience level: 1=junior, 2=middle, 3=senior, 4=top-tier"),
 			skills: z.array(z.string()).min(1).max(20).describe("Required skills (1-20 unique strings)"),
 			location: z.string().optional().describe("Location (required if onsite)"),
@@ -85,7 +88,10 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 			projectDuration: z.enum(["longTerm", "shortTerm"]).describe("Project duration"),
 			isBudgetNegotiable: z.boolean().describe("Whether budget is negotiable"),
 			projectType: z.enum(["ongoing", "one-time"]).describe("Project type"),
-			workload: z.string().describe("Workload. For ongoing: under_20_hrs_per_week, between_20_30_hrs_per_week, over_30_hrs_per_week. For one-time: few_days, one_two_weeks, more_two_weeks"),
+			workload: z.enum([
+				"under_20_hrs_per_week", "between_20_30_hrs_per_week", "over_30_hrs_per_week",
+				"few_days", "one_two_weeks", "more_two_weeks",
+			]).describe("Workload. Must match projectType: ongoing → hrs options, one-time → days/weeks options"),
 			experienceLevel: z.number().min(1).max(4).describe("Experience level: 1=junior, 2=middle, 3=senior, 4=top-tier"),
 			skills: z.array(z.string()).min(1).max(20).describe("Required skills (1-20 unique strings)"),
 			location: z.string().optional().describe("Location (required if onsite)"),
