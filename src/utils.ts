@@ -55,13 +55,19 @@ export async function fetchUpstreamAuthToken({
 	client_secret: string;
 	redirect_uri: string;
 	client_id: string;
-}): Promise<[string, null] | [null, Response]> {
+}): Promise<[{ accessToken: string; refreshToken?: string }, null] | [null, Response]> {
 	if (!code) {
 		return [null, new Response("Missing code", { status: 400 })];
 	}
 
 	const resp = await fetch(upstream_url, {
-		body: new URLSearchParams({ client_id, client_secret, code, redirect_uri }).toString(),
+		body: new URLSearchParams({
+			grant_type: "authorization_code",
+			client_id,
+			client_secret,
+			code,
+			redirect_uri,
+		}).toString(),
 		headers: {
 			"Accept": "application/json",
 			"Content-Type": "application/x-www-form-urlencoded",
@@ -73,12 +79,59 @@ export async function fetchUpstreamAuthToken({
 		return [null, new Response("Failed to fetch access token", { status: 500 })];
 	}
 
-	const body = await resp.json() as { id_token?: string };
+	const body = await resp.json() as { id_token?: string; refresh_token?: string };
 	const accessToken = body.id_token;
 	if (!accessToken) {
 		return [null, new Response("Missing access token", { status: 400 })];
 	}
-	return [accessToken, null];
+	return [{ accessToken, refreshToken: body.refresh_token }, null];
+}
+
+/**
+ * Refreshes an upstream access token using a refresh token.
+ */
+export async function refreshUpstreamToken({
+	client_id,
+	client_secret,
+	refresh_token,
+	upstream_url,
+}: {
+	client_id: string;
+	client_secret: string;
+	refresh_token: string;
+	upstream_url: string;
+}): Promise<{ accessToken: string; refreshToken?: string } | null> {
+	try {
+		const resp = await fetch(upstream_url, {
+			body: new URLSearchParams({
+				grant_type: "refresh_token",
+				client_id,
+				client_secret,
+				refresh_token,
+			}).toString(),
+			headers: {
+				"Accept": "application/json",
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			method: "POST",
+		});
+
+		if (!resp.ok) {
+			console.error("Upstream token refresh failed:", resp.status);
+			return null;
+		}
+
+		const body = await resp.json() as { id_token?: string; refresh_token?: string };
+		if (!body.id_token) {
+			console.error("Upstream token refresh returned no id_token");
+			return null;
+		}
+
+		return { accessToken: body.id_token, refreshToken: body.refresh_token };
+	} catch (error) {
+		console.error("Upstream token refresh error:", error);
+		return null;
+	}
 }
 
 // Context from the auth process, encrypted & stored in the auth token
@@ -88,4 +141,5 @@ export type Props = {
 	name: string;
 	email: string;
 	accessToken: string;
+	refreshToken?: string;
 };

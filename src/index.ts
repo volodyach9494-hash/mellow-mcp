@@ -1,8 +1,10 @@
+import { env } from "cloudflare:workers"
 import OAuthProvider from "@cloudflare/workers-oauth-provider"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { McpAgent } from "agents/mcp"
 import { createMellowClient } from "./mellow-client"
 import { MellowHandler } from "./mellow-handler"
+import { registerChatGptTools } from "./tools/chatgpt"
 import { registerCompanyTools } from "./tools/companies"
 import { registerDocumentTools } from "./tools/documents"
 import { registerFinanceTools } from "./tools/finances"
@@ -12,15 +14,7 @@ import { registerReferenceTools } from "./tools/reference"
 import { registerTaskGroupTools } from "./tools/task-groups"
 import { registerTaskTools } from "./tools/tasks"
 import { registerWebhookTools } from "./tools/webhooks"
-
-// Context from the auth process, encrypted & stored in the auth token
-// and provided to the DurableMCP as this.props
-type Props = {
-	sub: string
-	name: string
-	email: string
-	accessToken: string
-}
+import { refreshUpstreamToken, type Props } from "./utils"
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
@@ -44,6 +38,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 			registerReferenceTools(this.server, client)
 			registerWebhookTools(this.server, client)
 			registerProfileTools(this.server, client)
+			registerChatGptTools(this.server, client)
 		} catch (error) {
 			console.error("MCP init failed:", error)
 			throw error
@@ -58,4 +53,29 @@ export default new OAuthProvider({
 	clientRegistrationEndpoint: "/register",
 	defaultHandler: MellowHandler as any,
 	tokenEndpoint: "/token",
+	refreshTokenTTL: 2592000, // 30 days
+	async tokenExchangeCallback({ grantType, props }) {
+		if (grantType !== "refresh_token" || !props.refreshToken) {
+			return
+		}
+
+		const refreshed = await refreshUpstreamToken({
+			client_id: env.MELLOW_CLIENT_ID,
+			client_secret: env.MELLOW_CLIENT_SECRET,
+			refresh_token: props.refreshToken,
+			upstream_url: `${env.MELLOW_BASE_URL}/token`,
+		})
+
+		if (!refreshed) {
+			return
+		}
+
+		return {
+			newProps: {
+				...props,
+				accessToken: refreshed.accessToken,
+				refreshToken: refreshed.refreshToken ?? props.refreshToken,
+			},
+		}
+	},
 })

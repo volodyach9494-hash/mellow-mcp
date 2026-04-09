@@ -156,7 +156,7 @@ app.get("/callback", async (c) => {
 	}
 
 	// Exchange the code for an access token
-	const [accessToken, errResponse] = await fetchUpstreamAuthToken({
+	const [tokens, errResponse] = await fetchUpstreamAuthToken({
 		client_id: c.env.MELLOW_CLIENT_ID,
 		client_secret: c.env.MELLOW_CLIENT_SECRET,
 		code: c.req.query("code"),
@@ -169,7 +169,7 @@ app.get("/callback", async (c) => {
 	// Fetch the user info from Mellow
 	const userResponse = await fetch(`${c.env.MELLOW_BASE_URL}/userinfo`, {
 		headers: {
-			Authorization: `Bearer ${accessToken}`,
+			Authorization: `Bearer ${tokens.accessToken}`,
 		},
 	});
 	if (!userResponse.ok) {
@@ -184,7 +184,8 @@ app.get("/callback", async (c) => {
 		},
 		// This will be available on this.props inside MyMCP
 		props: {
-			accessToken,
+			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken,
 			email,
 			name,
 			sub,
