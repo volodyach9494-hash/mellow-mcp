@@ -62,7 +62,7 @@ export function registerScoutApplicationTools(server: McpServer, client: MellowC
 		"Change the status of an application (in_review, short_list, rejected, accepted)",
 		{
 			id: z.string().uuid().describe("Application UUID"),
-			status: z.enum(["in_review", "short_list", "rejected", "accepted"]).describe("New application status"),
+			status: z.enum(["new", "in_review", "short_list", "rejected"]).describe("New application status"),
 		},
 		async ({ id, status }) => {
 			const result = await client.patch(`/applications/${id}/status`, { status })

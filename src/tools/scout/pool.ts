@@ -21,7 +21,6 @@ export function registerScoutPoolTools(server: McpServer, client: MellowClient) 
 			search: z.string().optional().describe("Search by name, email, or expertise area"),
 			page: z.number().optional().describe("Page number (default: 1)"),
 			limit: z.number().max(100).optional().describe("Items per page (max 100, default: 20)"),
-			sortField: z.string().optional().describe("Sort field (default: createdAt)"),
 			sortDirection: z.enum(["ASC", "DESC"]).optional().describe("Sort direction (default: DESC)"),
 		},
 		async ({ poolId, ...params }) => {
@@ -29,7 +28,7 @@ export function registerScoutPoolTools(server: McpServer, client: MellowClient) 
 				search: params.search,
 				page: params.page?.toString(),
 				limit: params.limit?.toString(),
-				sortField: params.sortField,
+				sortField: "createdAt",
 				sortDirection: params.sortDirection,
 			})
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
@@ -58,7 +57,7 @@ export function registerScoutPoolTools(server: McpServer, client: MellowClient) 
 			lastName: z.string().describe("Last name"),
 			email: z.string().email().describe("Email address"),
 			expertiseArea: z.string().describe("Area of expertise"),
-			experienceYears: z.number().min(0).describe("Years of experience (increments of 0.5)"),
+			experienceYears: z.number().min(0).optional().describe("Years of experience (increments of 0.5)"),
 			cvFileId: z.string().uuid().optional().describe("Uploaded CV attachment UUID"),
 			notes: z.string().max(5000).optional().describe("Notes about the freelancer"),
 			portfolioLinks: z.array(z.string().url()).max(4).optional().describe("Portfolio URLs (max 4)"),

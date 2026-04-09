@@ -10,7 +10,7 @@ export function registerScoutAiTaskTools(server: McpServer, client: MellowClient
 			request: z.string().min(5).max(1000).describe("Prompt describing the position to generate"),
 		},
 		async ({ request }) => {
-			const result = await client.post("/ai/tasks/generate-position", { request, source: "MCP" })
+			const result = await client.post("/ai/tasks/generate-position", { request, source: "app" })
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
