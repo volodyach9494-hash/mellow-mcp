@@ -42,6 +42,7 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 		"Create a new hiring position",
 		{
 			title: z.string().describe("Position title"),
+			summary: z.string().optional().describe("Short summary of the position"),
 			description: z.string().describe("Position description"),
 			company: z.object({
 				id: z.string().uuid().optional().describe("Existing company UUID"),
@@ -49,7 +50,6 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 				website: z.string().url().describe("Company website URL"),
 			}).describe("Company details"),
 			workModel: z.enum(["remote", "onsite"]).describe("Work model"),
-			projectDuration: z.enum(["longTerm", "shortTerm"]).describe("Project duration"),
 			isBudgetNegotiable: z.boolean().describe("Whether budget is negotiable"),
 			projectType: z.enum(["ongoing", "one-time"]).describe("Project type"),
 			workload: z.enum([
@@ -58,7 +58,11 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 			]).describe("Workload. Must match projectType: ongoing → hrs options, one-time → days/weeks options"),
 			experienceLevel: z.number().min(1).max(4).describe("Experience level: 1=junior, 2=middle, 3=senior, 4=top-tier"),
 			skills: z.array(z.string()).min(1).max(20).describe("Required skills (1-20 unique strings)"),
+			languages: z.array(z.enum([
+				"en", "zh", "nl", "fr", "de", "id", "it", "ja", "ko", "pl", "pt", "es", "tr", "ru",
+			])).min(1).max(3).optional().describe("Required languages (1-3, ISO codes)"),
 			location: z.string().optional().describe("Location (required if onsite)"),
+			timezone: z.string().optional().describe("IANA timezone (e.g. Europe/London)"),
 			paymentType: z.enum(["hourly", "monthly", "fixed"]).optional().describe("Payment type (required if budget not negotiable)"),
 			currency: z.enum(["eur", "usd"]).optional().describe("Currency (required if budget not negotiable)"),
 			budgetFrom: z.number().optional().describe("Budget lower bound"),
@@ -78,6 +82,7 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 		{
 			id: z.string().uuid().describe("Position UUID"),
 			title: z.string().describe("Position title"),
+			summary: z.string().optional().describe("Short summary of the position"),
 			description: z.string().describe("Position description"),
 			company: z.object({
 				id: z.string().uuid().optional().describe("Existing company UUID"),
@@ -85,7 +90,6 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 				website: z.string().url().describe("Company website URL"),
 			}).describe("Company details"),
 			workModel: z.enum(["remote", "onsite"]).describe("Work model"),
-			projectDuration: z.enum(["longTerm", "shortTerm"]).describe("Project duration"),
 			isBudgetNegotiable: z.boolean().describe("Whether budget is negotiable"),
 			projectType: z.enum(["ongoing", "one-time"]).describe("Project type"),
 			workload: z.enum([
@@ -94,7 +98,11 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 			]).describe("Workload. Must match projectType: ongoing → hrs options, one-time → days/weeks options"),
 			experienceLevel: z.number().min(1).max(4).describe("Experience level: 1=junior, 2=middle, 3=senior, 4=top-tier"),
 			skills: z.array(z.string()).min(1).max(20).describe("Required skills (1-20 unique strings)"),
+			languages: z.array(z.enum([
+				"en", "zh", "nl", "fr", "de", "id", "it", "ja", "ko", "pl", "pt", "es", "tr", "ru",
+			])).min(1).max(3).optional().describe("Required languages (1-3, ISO codes)"),
 			location: z.string().optional().describe("Location (required if onsite)"),
+			timezone: z.string().optional().describe("IANA timezone (e.g. Europe/London)"),
 			paymentType: z.enum(["hourly", "monthly", "fixed"]).optional().describe("Payment type"),
 			currency: z.enum(["eur", "usd"]).optional().describe("Currency"),
 			budgetFrom: z.number().optional().describe("Budget lower bound"),
