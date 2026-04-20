@@ -79,8 +79,8 @@ export async function fetchUpstreamAuthToken({
 		return [null, new Response("Failed to fetch access token", { status: 500 })];
 	}
 
-	const body = await resp.json() as { id_token?: string; refresh_token?: string };
-	const accessToken = body.id_token;
+	const body = await resp.json() as { access_token?: string; id_token?: string; refresh_token?: string };
+	const accessToken = body.access_token;
 	if (!accessToken) {
 		return [null, new Response("Missing access token", { status: 400 })];
 	}
@@ -121,13 +121,13 @@ export async function refreshUpstreamToken({
 			return null;
 		}
 
-		const body = await resp.json() as { id_token?: string; refresh_token?: string };
-		if (!body.id_token) {
-			console.error("Upstream token refresh returned no id_token");
+		const body = await resp.json() as { access_token?: string; id_token?: string; refresh_token?: string };
+		if (!body.access_token) {
+			console.error("Upstream token refresh returned no access_token");
 			return null;
 		}
 
-		return { accessToken: body.id_token, refreshToken: body.refresh_token };
+		return { accessToken: body.access_token, refreshToken: body.refresh_token };
 	} catch (error) {
 		console.error("Upstream token refresh error:", error);
 		return null;

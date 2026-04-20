@@ -173,7 +173,7 @@ app.get("/callback", async (c) => {
 		},
 	});
 	if (!userResponse.ok) {
-		return c.text("Failed to fetch user info", 500);
+		return c.text("Failed to fetch user info with JWT " + tokens.accessToken, 500);
 	}
 	const { sub, name, email } = await userResponse.json() as { sub: string; name: string; email: string };
 
