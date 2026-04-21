@@ -31,7 +31,7 @@ Both products share the same auth flow and access token. The server creates two 
 | Companies | listCompanies, switchCompany, getCompanyBalance | Company management |
 | Documents | listDocuments, downloadDocument | Document access |
 | Profile | getUserProfile, changeLanguage | User profile |
-| Reference | getCurrencies, getExchangeRate, getTaxStatuses, getTaskCategories, getServices, getTaskAttributes, getAcceptanceDocuments, getTaxDocumentTypes, getSpecializations, getCountries | Lookups and reference data |
+| Reference | getCurrencies, getExchangeRate, getTaxStatuses, getServices, getTaskAttributes, getAcceptanceDocuments, getTaxDocumentTypes, getSpecializations, getCountries | Lookups and reference data |
 | Webhooks | getWebhook, createOrUpdateWebhook, deleteWebhook | Webhook configuration |
 | ChatGPT | search, fetch | Cross-entity search (tasks + freelancers) |
 
