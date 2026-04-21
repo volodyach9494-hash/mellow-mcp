@@ -47,7 +47,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of task attributes with their types and options",
 		{},
 		async () => {
-			const result = await client.get("/lookups/service-attributes");
+			const result = await client.get("/customer/lookups/service-attributes");
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
