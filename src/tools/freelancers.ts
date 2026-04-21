@@ -274,7 +274,7 @@ export function registerFreelancerTools(server: McpServer, client: MellowClient)
 		},
 		async (params) => {
 			const result = await client.post(
-				"/customer/freelancers/tax-info/link-tax-number",
+				"/customer/freelancer/tax-info/link-tax-number",
 				params,
 			)
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }

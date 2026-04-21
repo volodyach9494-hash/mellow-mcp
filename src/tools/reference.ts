@@ -87,7 +87,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of country codes",
 		{},
 		async () => {
-			const result = await client.get("/customer/ord/get-arccw-codes")
+			const result = await client.get("/lookups/countries")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
