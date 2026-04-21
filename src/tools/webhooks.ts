@@ -8,7 +8,7 @@ export function registerWebhookTools(server: McpServer, client: MellowClient) {
 		"Get the current webhook configuration",
 		{},
 		async () => {
-			const result = await client.get("/webhooks")
+			const result = await client.get("/customer/web-hook")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)

@@ -47,7 +47,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of task attributes with their types and options",
 		{},
 		async () => {
-			const result = await client.get("/lookups/service-attributes");
+			const result = await client.get("/customer/lookups/service-attributes");
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
@@ -57,7 +57,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of additional documents for task acceptance",
 		{},
 		async () => {
-			const result = await client.get("/reference/additional-documents")
+			const result = await client.get("/customer/lookups/acceptance-files")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
@@ -67,7 +67,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of tax document types",
 		{},
 		async () => {
-			const result = await client.get("/reference/tax-document-types")
+			const result = await client.get("/customer/freelancers/get-tax-document-types")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
@@ -77,7 +77,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of freelancer specializations",
 		{},
 		async () => {
-			const result = await client.get("/reference/freelancer-specializations")
+			const result = await client.get("/lookups/specializations")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
@@ -87,7 +87,7 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 		"Get list of country codes",
 		{},
 		async () => {
-			const result = await client.get("/reference/country-codes")
+			const result = await client.get("/customer/ord/get-arccw-codes")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)

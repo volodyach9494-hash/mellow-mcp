@@ -8,7 +8,7 @@ export function registerCompanyTools(server: McpServer, client: MellowClient) {
 		"List all companies associated with the current user",
 		{},
 		async () => {
-			const result = await client.get("/user/companies")
+			const result = await client.get("/customer/companies")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
@@ -27,12 +27,10 @@ export function registerCompanyTools(server: McpServer, client: MellowClient) {
 
 	server.tool(
 		"getCompanyBalance",
-		"Get the balance of a specific company",
-		{
-			companyId: z.number().describe("Company ID"),
-		},
-		async ({ companyId }) => {
-			const result = await client.get(`/user/company/${companyId}/balance`)
+		"Get the balance of the currently active company",
+		{},
+		async () => {
+			const result = await client.get("/customer/balance")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)

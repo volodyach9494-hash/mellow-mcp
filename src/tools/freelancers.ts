@@ -239,7 +239,7 @@ export function registerFreelancerTools(server: McpServer, client: MellowClient)
 			freelancerId: z.number().describe("Freelancer ID"),
 		},
 		async ({ freelancerId }) => {
-			const result = await client.get(`/customer/freelancers/${freelancerId}/tax-info`)
+			const result = await client.get(`/customer/freelancers/tax-info/${freelancerId}`)
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
