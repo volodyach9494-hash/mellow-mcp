@@ -33,21 +33,11 @@ export function registerReferenceTools(server: McpServer, client: MellowClient) 
 	)
 
 	server.tool(
-		"getTaskCategories",
-		"Get list of task categories",
-		{},
-		async () => {
-			const result = await client.get("/customer/lookups/categories");
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
 		"getServices",
 		"Get list of services and works",
 		{},
 		async () => {
-			const result = await client.get("/lookups/services")
+			const result = await client.get("/customer/lookups/services")
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
