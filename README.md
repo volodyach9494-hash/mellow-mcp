@@ -30,7 +30,7 @@ Both products share the same auth flow and access token. The server creates two 
 | Finances | createPayout, getPayoutStatus, listTransactions, getPaymentMethods, addBankCard, addBankAccount, addEWallet, deleteBankCard, deleteBankAccount, deleteEWallet, requestPaymentMethodCode | Payments and transactions |
 | Companies | listCompanies, switchCompany, getCompanyBalance | Company management |
 | Documents | listDocuments, downloadDocument | Document access |
-| Profile | getUserProfile, changeLanguage | User profile |
+| Profile | getUserProfile | User profile |
 | Reference | getCurrencies, getExchangeRate, getTaxStatuses, getServices, getTaskAttributes, getAcceptanceDocuments, getTaxDocumentTypes, getSpecializations, getCountries | Lookups and reference data |
 | Webhooks | getWebhook, createOrUpdateWebhook, deleteWebhook | Webhook configuration |
 | ChatGPT | search, fetch | Cross-entity search (tasks + freelancers) |

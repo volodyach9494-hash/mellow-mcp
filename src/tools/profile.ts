@@ -1,5 +1,4 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { z } from "zod"
 import type { MellowClient } from "../mellow-client"
 
 export function registerProfileTools(server: McpServer, client: MellowClient) {
@@ -9,18 +8,6 @@ export function registerProfileTools(server: McpServer, client: MellowClient) {
 		{},
 		async () => {
 			const result = await client.get("/profile")
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"changeLanguage",
-		"Change the user's preferred language",
-		{
-			language: z.string().describe("Language code (e.g. EN, RU)"),
-		},
-		async ({ language }) => {
-			const result = await client.put("/profile/language", { language })
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
