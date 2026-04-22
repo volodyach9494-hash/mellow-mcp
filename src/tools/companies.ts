@@ -20,7 +20,7 @@ export function registerCompanyTools(server: McpServer, client: MellowClient) {
 			companyId: z.number().describe("Company ID to switch to"),
 		},
 		async ({ companyId }) => {
-			const result = await client.put(`/user/company/${companyId}`)
+			const result = await client.post(`/customer/companies/${companyId}/default`)
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)

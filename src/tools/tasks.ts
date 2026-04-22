@@ -318,7 +318,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
 			taskId: z.number().describe("Task ID"),
 		},
 		async ({ taskId }) => {
-			const result = await client.get(`/customer/tasks/${taskId}/messages`)
+			const result = await client.get(`/tasks/${taskId}/messages`)
 			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
 		},
 	)
