@@ -175,3 +175,7 @@ dist
 !.dev.vars.example
 !.env.example
 .idea
+
+# macOS
+.DS_Store
+**/.DS_Store

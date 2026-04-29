@@ -1,356 +1,411 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { z } from "zod"
-import type { MellowClient } from "../mellow-client"
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { asStructuredList, type MellowClient } from "../mellow-client";
 
 export function registerTaskTools(server: McpServer, client: MellowClient) {
-	server.tool(
-		"listTasks",
-		"Search and retrieve tasks with filters (pagination, date ranges, price, state, etc.)",
-		{
-			search: z.string().optional().describe("Search task title/description"),
-			workerId: z.number().optional().describe("Filter by worker ID"),
-			creatorId: z.number().optional().describe("Filter by creator ID"),
-			companyId: z.number().optional().describe("Filter by company ID"),
-			state: z
-				.array(z.number())
-				.optional()
-				.describe("Filter by task states (array of state IDs)"),
-			groupId: z.number().optional().describe("Filter by task group ID"),
-			currencyId: z.number().optional().describe("Filter by currency ID"),
-			dateCreatedFrom: z
-				.string()
-				.optional()
-				.describe("Filter tasks created from date (YYYY-MM-DD)"),
-			dateCreatedTo: z
-				.string()
-				.optional()
-				.describe("Filter tasks created to date (YYYY-MM-DD)"),
-			dateEndFrom: z.string().optional().describe("Filter by end date from"),
-			dateEndTo: z.string().optional().describe("Filter by end date to"),
-			dateFinishedFrom: z.string().optional().describe("Filter by finished date from"),
-			dateFinishedTo: z.string().optional().describe("Filter by finished date to"),
-			dateAcceptedFrom: z.string().optional().describe("Filter by accepted date from"),
-			dateAcceptedTo: z.string().optional().describe("Filter by accepted date to"),
-			datePaidFrom: z.string().optional().describe("Filter by paid date from"),
-			datePaidTo: z.string().optional().describe("Filter by paid date to"),
-			priceFrom: z.number().optional().describe("Minimum price filter"),
-			priceTo: z.number().optional().describe("Maximum price filter"),
-			hasPayout: z.boolean().optional().describe("Filter by payout existence"),
-			hasCopyright: z.boolean().optional().describe("Filter by copyright flag"),
-			hasReport: z.boolean().optional().describe("Filter by report flag"),
-			deadlineType: z.number().optional().describe("Filter by deadline type"),
-			workerTaxationStatus: z
-				.number()
-				.optional()
-				.describe("Filter by worker taxation status"),
-			externalId: z.string().optional().describe("Filter by external ID"),
-			payedBy: z.number().optional().describe("Filter by payer ID"),
-			sort: z
-				.enum(["date_end", "date_finished", "price"])
-				.optional()
-				.describe("Sort field"),
-			direction: z.enum(["asc", "desc"]).optional().describe("Sort direction"),
-			page: z.number().optional().describe("Page number"),
-			size: z.number().max(500).optional().describe("Page size (max 500)"),
-		},
-		async (params) => {
-			const queryParams: Record<string, string | undefined> = {
-				"filter[search]": params.search,
-				"filter[workerId]": params.workerId?.toString(),
-				"filter[creatorId]": params.creatorId?.toString(),
-				"filter[companyId]": params.companyId?.toString(),
-				"filter[groupId]": params.groupId?.toString(),
-				"filter[currencyId]": params.currencyId?.toString(),
-				"filter[dateCreatedFrom]": params.dateCreatedFrom,
-				"filter[dateCreatedTo]": params.dateCreatedTo,
-				"filter[dateEndFrom]": params.dateEndFrom,
-				"filter[dateEndTo]": params.dateEndTo,
-				"filter[dateFinishedFrom]": params.dateFinishedFrom,
-				"filter[dateFinishedTo]": params.dateFinishedTo,
-				"filter[dateAcceptedFrom]": params.dateAcceptedFrom,
-				"filter[dateAcceptedTo]": params.dateAcceptedTo,
-				"filter[datePaidFrom]": params.datePaidFrom,
-				"filter[datePaidTo]": params.datePaidTo,
-				"filter[priceFrom]": params.priceFrom?.toString(),
-				"filter[priceTo]": params.priceTo?.toString(),
-				"filter[hasPayout]": params.hasPayout?.toString(),
-				"filter[hasCopyright]": params.hasCopyright?.toString(),
-				"filter[hasReport]": params.hasReport?.toString(),
-				"filter[deadlineType]": params.deadlineType?.toString(),
-				"filter[workerTaxationStatus]": params.workerTaxationStatus?.toString(),
-				"filter[externalId]": params.externalId,
-				"filter[payedBy]": params.payedBy?.toString(),
-				sort: params.sort,
-				direction: params.direction,
-				page: params.page?.toString(),
-				size: params.size?.toString(),
-			}
+  server.tool(
+    "listTasks",
+    "Search and retrieve tasks with filters (pagination, date ranges, price, state, etc.)",
+    {
+      search: z.string().optional().describe("Search task title/description"),
+      workerId: z.number().optional().describe("Filter by worker ID"),
+      creatorId: z.number().optional().describe("Filter by creator ID"),
+      companyId: z.number().optional().describe("Filter by company ID"),
+      state: z.array(z.number()).optional().describe("Filter by task states (array of state IDs)"),
+      groupId: z.number().optional().describe("Filter by task group ID"),
+      currencyId: z.number().optional().describe("Filter by currency ID"),
+      dateCreatedFrom: z.string().optional().describe("Filter tasks created from date (YYYY-MM-DD)"),
+      dateCreatedTo: z.string().optional().describe("Filter tasks created to date (YYYY-MM-DD)"),
+      dateEndFrom: z.string().optional().describe("Filter by end date from"),
+      dateEndTo: z.string().optional().describe("Filter by end date to"),
+      dateFinishedFrom: z.string().optional().describe("Filter by finished date from"),
+      dateFinishedTo: z.string().optional().describe("Filter by finished date to"),
+      dateAcceptedFrom: z.string().optional().describe("Filter by accepted date from"),
+      dateAcceptedTo: z.string().optional().describe("Filter by accepted date to"),
+      datePaidFrom: z.string().optional().describe("Filter by paid date from"),
+      datePaidTo: z.string().optional().describe("Filter by paid date to"),
+      priceFrom: z.number().optional().describe("Minimum price filter"),
+      priceTo: z.number().optional().describe("Maximum price filter"),
+      hasPayout: z.boolean().optional().describe("Filter by payout existence"),
+      hasCopyright: z.boolean().optional().describe("Filter by copyright flag"),
+      hasReport: z.boolean().optional().describe("Filter by report flag"),
+      deadlineType: z.number().optional().describe("Filter by deadline type"),
+      workerTaxationStatus: z.number().optional().describe("Filter by worker taxation status"),
+      externalId: z.string().optional().describe("Filter by external ID"),
+      payedBy: z.number().optional().describe("Filter by payer ID"),
+      sort: z.enum(["date_end", "date_finished", "price"]).optional().describe("Sort field"),
+      direction: z.enum(["asc", "desc"]).optional().describe("Sort direction"),
+      page: z.number().optional().describe("Page number"),
+      size: z.number().max(500).optional().describe("Page size (max 500)"),
+    },
+    { title: "List tasks", readOnlyHint: true },
+    async (params) => {
+      const queryParams: Record<string, string | undefined> = {
+        "filter[search]": params.search,
+        "filter[workerId]": params.workerId?.toString(),
+        "filter[creatorId]": params.creatorId?.toString(),
+        "filter[companyId]": params.companyId?.toString(),
+        "filter[groupId]": params.groupId?.toString(),
+        "filter[currencyId]": params.currencyId?.toString(),
+        "filter[dateCreatedFrom]": params.dateCreatedFrom,
+        "filter[dateCreatedTo]": params.dateCreatedTo,
+        "filter[dateEndFrom]": params.dateEndFrom,
+        "filter[dateEndTo]": params.dateEndTo,
+        "filter[dateFinishedFrom]": params.dateFinishedFrom,
+        "filter[dateFinishedTo]": params.dateFinishedTo,
+        "filter[dateAcceptedFrom]": params.dateAcceptedFrom,
+        "filter[dateAcceptedTo]": params.dateAcceptedTo,
+        "filter[datePaidFrom]": params.datePaidFrom,
+        "filter[datePaidTo]": params.datePaidTo,
+        "filter[priceFrom]": params.priceFrom?.toString(),
+        "filter[priceTo]": params.priceTo?.toString(),
+        "filter[hasPayout]": params.hasPayout?.toString(),
+        "filter[hasCopyright]": params.hasCopyright?.toString(),
+        "filter[hasReport]": params.hasReport?.toString(),
+        "filter[deadlineType]": params.deadlineType?.toString(),
+        "filter[workerTaxationStatus]": params.workerTaxationStatus?.toString(),
+        "filter[externalId]": params.externalId,
+        "filter[payedBy]": params.payedBy?.toString(),
+        sort: params.sort,
+        direction: params.direction,
+        page: params.page?.toString(),
+        size: params.size?.toString(),
+      };
 
-			// Handle state array - needs multiple filter[state][] params
-			if (params.state?.length) {
-				for (const s of params.state) {
-					queryParams[`filter[state][]`] = s.toString()
-				}
-			}
+      // Handle state array - needs multiple filter[state][] params
+      if (params.state?.length) {
+        for (const s of params.state) {
+          queryParams[`filter[state][]`] = s.toString();
+        }
+      }
 
-			const result = await client.get("/customer/tasks", queryParams)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+      const result = await client.get<unknown>("/customer/tasks", queryParams);
+      return {
+        structuredContent: asStructuredList(result),
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"getTask",
-		"Get detailed information about a specific task by ID or UUID",
-		{
-			taskId: z
-				.string()
-				.describe("Task ID (numeric) or UUID string"),
-		},
-		async ({ taskId }) => {
-			const result = await client.get(`/customer/tasks/${taskId}`)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "getTask",
+    "Get detailed information about a specific task by ID or UUID",
+    {
+      taskId: z.string().describe("Task ID (numeric) or UUID string"),
+    },
+    { title: "Get task", readOnlyHint: true },
+    async ({ taskId }) => {
+      const result = await client.get<unknown>(`/customer/tasks/${taskId}`);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"createTask",
-		"Create a new task for a freelancer",
-		{
-			title: z.string().describe("Task title"),
-			description: z.string().describe("Task description"),
-			workerId: z.number().describe("Freelancer worker ID"),
-			categoryId: z.number().describe("Task category ID"),
-			price: z.number().describe("Task price"),
-			deadline: z
-				.string()
-				.describe("Task deadline (format: 2022-05-19 11:53:03)"),
-			uuid: z.string().optional().describe("Optional UUID for the task"),
-			attributes: z
-				.array(z.object({ id: z.number(), value: z.string() }))
-				.optional()
-				.describe("Task attributes (id + value pairs)"),
-			copyright: z.boolean().optional().describe("Whether copyright transfer is required"),
-			needReport: z.boolean().optional().describe("Whether a report is needed"),
-			fileIds: z.array(z.number()).optional().describe("Attached file IDs"),
-			externalId: z.string().optional().describe("External reference ID"),
-			workerCurrency: z
-				.string()
-				.optional()
-				.describe("Currency code for worker payment"),
-			shareCommission: z.boolean().optional().describe("Share commission with worker"),
-			validateOnly: z
-				.boolean()
-				.optional()
-				.describe("Only validate without creating"),
-			acceptanceFileIds: z
-				.array(z.number())
-				.optional()
-				.describe("Acceptance document file IDs"),
-			editGroup: z.array(z.number()).optional().describe("Edit group IDs"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "createTask",
+    "Create a new task for a freelancer. Pass createType='draft' to save as DRAFT (publish later via publishDraftTask); omit it (or pass 'published') to create directly in NEW. Title is auto-normalized client-side (em/en-dash → hyphen, curly quotes → straight, NBSP → space) to avoid the backend's special-char whitelist 422.",
+    {
+      title: z
+        .string()
+        .describe(
+          'Task title (2–300 chars). Allowed: letters (any language), digits, whitespace, and special chars `- , . : ; ( ) _ " № % # @ ^ « »`. Em-dashes (—), en-dashes (–), curly quotes, slashes are rejected by the backend with HTTP 422 — this MCP normalizes the most common substitutions before sending.',
+        ),
+      description: z.string().describe("Task description"),
+      workerId: z.number().describe("Freelancer worker ID"),
+      categoryId: z
+        .number()
+        .describe(
+          "Service ID from getServices() (required). Wire-name `categoryId` is legacy from a V1 catalogue; under the current V2 model this is always a leaf-level service id, not a parent category. Passing a parent category returns 422 'Service is not available'.",
+        ),
+      price: z.number().describe("Task price"),
+      deadline: z
+        .string()
+        .describe(
+          "Task deadline. Prefer ISO-8601 with explicit timezone (e.g. 2026-05-01T15:00:00+00:00). If no TZ is given, server-default (UTC) is assumed.",
+        ),
+      uuid: z
+        .string()
+        .optional()
+        .describe(
+          "Optional client-generated UUID. NOT an idempotency key — duplicates return HTTP 400. For idempotent retries use externalId + listTasks(filter[externalId]=...).",
+        ),
+      attributes: z
+        .array(z.object({ id: z.number(), value: z.string() }))
+        .optional()
+        .describe(
+          "Task attributes (id + value pairs). Up to 8 are available; 3 are mandatory per category — fetch them via getTaskAttributes.",
+        ),
+      copyright: z.boolean().optional().describe("Whether copyright transfer is required"),
+      needReport: z.boolean().optional().describe("Whether a report is needed"),
+      fileIds: z.array(z.number()).optional().describe("IDs of files pre-uploaded via addTaskFiles. Not URLs, not base64."),
+      externalId: z
+        .string()
+        .optional()
+        .describe("External reference ID. Unique per (companyId, externalId). Use this for idempotent retries."),
+      workerCurrency: z.string().optional().describe("ISO currency code for worker payment (USD, EUR, RUB, KZT)."),
+      shareCommission: z.boolean().optional().describe("Share commission with worker"),
+      validateOnly: z.boolean().optional().describe("Only run validators without writing — dry run."),
+      acceptanceFileTemplateIds: z
+        .array(z.number())
+        .optional()
+        .describe("IDs of acceptance document templates the freelancer must sign. Look up via getAcceptanceDocuments."),
+      editGroup: z.array(z.number()).optional().describe("Task group IDs (legacy plural; pass a single-element array)."),
+      createType: z
+        .enum(["draft", "published"])
+        .optional()
+        .describe("Create as DRAFT or directly published (NEW). Default is published. Use 'draft' for review-before-publish flows."),
+    },
+    { title: "Create task" },
+    async (params) => {
+      // Normalize title to keep within the backend's special-char whitelist:
+      // em/en-dash → hyphen, curly quotes → straight, NBSP/narrow-NBSP → regular space.
+      // Curly singles and backticks are stripped (apostrophes are not on the whitelist).
+      const normalizedTitle = params.title.replace(/[—–]/g, "-").replace(/[“”]/g, '"').replace(/[‘’`]/g, "").replace(/[  ]/g, " ");
+      const result = await client.post<unknown>("/customer/tasks", { ...params, title: normalizedTitle });
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"publishDraftTask",
-		"Publish a draft task to make it active",
-		{
-			taskId: z.number().optional().describe("Task ID"),
-			uuid: z.string().optional().describe("Task UUID"),
-			companyId: z.number().describe("Company ID to publish under"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/publish-draft", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "publishDraftTask",
+    "Publish a draft task (DRAFT → NEW). Provide either taskId or uuid (not both).",
+    {
+      taskId: z.number().optional().describe("Task ID (numeric). Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+      companyId: z
+        .number()
+        .optional()
+        .describe("Company ID. Optional — defaults to the active company context (X-Company-Id header or user default)."),
+    },
+    { title: "Publish draft task" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/publish-draft", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"getAllowedCurrencies",
-		"Get allowed currencies for multicurrency tasks",
-		{
-			companyId: z.number().describe("Company ID"),
-		},
-		async ({ companyId }) => {
-			const result = await client.get("/customer/tasks/allowed-currencies", {
-				companyId: companyId.toString(),
-			})
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "getAllowedCurrencies",
+    "Get allowed currencies for multicurrency tasks for the active company.",
+    {
+      companyId: z
+        .number()
+        .optional()
+        .describe("Company ID. Optional — defaults to the active company context (X-Company-Id header or user default)."),
+    },
+    { title: "Get allowed currencies", readOnlyHint: true },
+    async ({ companyId }) => {
+      const query: Record<string, string | undefined> = {};
+      if (companyId !== undefined) query.companyId = companyId.toString();
+      const result = await client.get<unknown>("/customer/tasks/allowed-currencies", query);
+      return {
+        structuredContent: asStructuredList(result),
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"calculateTotalCost",
-		"Calculate total cost for a task including commissions and exchange rates",
-		{
-			uuid: z.string().describe("Task UUID"),
-			price: z.number().describe("Task price"),
-			workerCurrency: z.string().describe("Worker currency code"),
-			shareCommission: z.boolean().describe("Whether to share commission"),
-			workerId: z.number().describe("Worker ID"),
-			categoryId: z.number().describe("Category ID"),
-			companyId: z.number().describe("Company ID"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/total-cost", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "changeTaskStatus",
+    "Universal state transition endpoint. Only 4 values of 'state' are accepted: 2 (worker accepts), 3 (worker finishes), 6 (worker declines), 8 (customer confirms worker's decline). Any other value returns HTTP 400. Most of these are freelancer-side; for customer flows prefer dedicated tools (acceptTask, declineTask, resumeTask).",
+    {
+      taskId: z.string().describe("Task ID or UUID"),
+      state: z
+        .number()
+        .describe(
+          "2=worker accepts (NEW→IN_WORK), 3=worker finishes (IN_WORK→RESULT), 6=worker declines, 8=customer confirms worker's decline (WAITING_DECLINE_BY_WORKER→DECLINED_BY_CUSTOMER).",
+        ),
+    },
+    { title: "Change task status" },
+    async ({ taskId, state }) => {
+      const result = await client.put<unknown>(`/customer/tasks/${taskId}`, { state });
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"changeTaskStatus",
-		"Change a task's status (start, complete, decline, confirm rejection)",
-		{
-			taskId: z.string().describe("Task ID or UUID"),
-			state: z
-				.number()
-				.describe("New state: 2=start, 3=complete, 6=decline, 8=confirm rejection"),
-		},
-		async ({ taskId, state }) => {
-			const result = await client.put(`/customer/tasks/${taskId}`, { state })
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "changeDeadline",
+    "Extend a task's deadline. Only legal when the task is in WAITING_FOR_CUSTOMER_DEADLINE_DECISION (14), the previous active state was NEW or IN_WORK, and the new deadline is in the future. Otherwise HTTP 400. Shortening is not supported.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+      deadline: z.string().describe("New deadline (ISO 8601 with timezone). Must be in the future."),
+    },
+    { title: "Extend task deadline" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/prolong-deadline", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"changeDeadline",
-		"Extend or change a task's deadline",
-		{
-			taskId: z.number().optional().describe("Task ID"),
-			uuid: z.string().optional().describe("Task UUID"),
-			deadline: z
-				.string()
-				.describe("New deadline (ISO 8601 format)"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/prolong-deadline", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "checkTaskRequirements",
+    "Check if a freelancer meets task requirements before starting",
+    {
+      taskUuid: z.string().describe("Task UUID"),
+      freelancerUuid: z.string().describe("Freelancer UUID"),
+    },
+    { title: "Check task requirements", readOnlyHint: true },
+    async ({ taskUuid, freelancerUuid }) => {
+      const result = await client.get<unknown>("/customer/freelancers/check-task-requirements", { taskUuid, freelancerUuid });
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"checkTaskRequirements",
-		"Check if a freelancer meets task requirements before starting",
-		{
-			taskUuid: z.string().describe("Task UUID"),
-			freelancerUuid: z.string().describe("Freelancer UUID"),
-		},
-		async ({ taskUuid, freelancerUuid }) => {
-			const result = await client.get(
-				"/customer/freelancers/check-task-requirements",
-				{ taskUuid, freelancerUuid },
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "acceptTask",
+    "Accept the freelancer's submitted result. Transitions RESULT (3) → FOR_PAYMENT (4). Does NOT pay out — call payForTask as the next step. Also handles sub-paths from WAITING_DECLINE_BY_WORKER (11) / WAITING_FOR_CUSTOMER_DEADLINE_DECISION (14) into FOR_PAYMENT.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+    },
+    { title: "Accept task result" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/accept", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"acceptTask",
-		"Accept a completed task",
-		{
-			taskId: z.number().optional().describe("Task ID"),
-			uuid: z.string().optional().describe("Task UUID"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/accept", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "payForTask",
+    "Trigger payout for a task already accepted. Legal only in FOR_PAYMENT (4). Transitions FOR_PAYMENT → PAYMENT_QUEUED (12); the final debit to FINISHED (5) is asynchronous. Returns HTTP 400 if balance is insufficient — pre-check getCompanyBalance.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+    },
+    { title: "Pay for task" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/pay", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"payForTask",
-		"Pay for a task that is in Pending payment status",
-		{
-			taskId: z.number().optional().describe("Task ID"),
-			uuid: z.string().optional().describe("Task UUID"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/pay", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "declineTask",
+    "Confirm the freelancer's decline request. Only valid when the task is in state WAITING_DECLINE_BY_WORKER (11) → transitions to DECLINED_BY_CUSTOMER (8). Does NOT cancel a live task — there is no single-call cancel.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+    },
+    { title: "Confirm freelancer decline" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/decline", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"quickPayTask",
-		"Pay for a task immediately upon creation",
-		{
-			taskId: z.number().optional().describe("Task ID"),
-			uuid: z.string().optional().describe("Task UUID"),
-			companyId: z.number().optional().describe("Company ID"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/quick-pay", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "resumeTask",
+    "Return a submitted task back to the freelancer for rework. Only valid from RESULT (3) → IN_WORK (2). Deadline is not auto-extended — if the old deadline has passed, the task may re-enter deadline-decision state.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+    },
+    { title: "Resume task for rework" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/return-to-work", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"declineTask",
-		"Decline/reject a task",
-		{
-			taskId: z.number().describe("Task ID to decline"),
-		},
-		async ({ taskId }) => {
-			const result = await client.post("/customer/tasks/decline", { taskId })
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "getTaskMessages",
+    "Get all messages for a task. Pass either taskId (numeric) or uuid.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+      page: z.number().optional().describe("Page number (default 1)"),
+      size: z.number().max(500).optional().describe("Page size (default 20, max 500)"),
+      sort: z.string().optional().describe("Sort field (default 'id')"),
+      direction: z.enum(["asc", "desc"]).optional().describe("Sort direction (default 'desc' — newest first)"),
+    },
+    { title: "Get task messages", readOnlyHint: true },
+    async (params) => {
+      const id = params.taskId ?? params.uuid;
+      const query: Record<string, string | undefined> = {
+        page: params.page?.toString(),
+        size: params.size?.toString(),
+        sort: params.sort,
+        direction: params.direction,
+      };
+      const result = await client.get<unknown>(`/tasks/${id}/messages`, query);
+      return {
+        structuredContent: asStructuredList(result),
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"resumeTask",
-		"Resume a task and return it to work status",
-		{
-			taskId: z.number().describe("Task ID to resume"),
-		},
-		async ({ taskId }) => {
-			const result = await client.post("/customer/tasks/return-to-work", { taskId })
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "addTaskMessage",
+    "Send a chat message into a task's thread. Required: taskId (numeric) and message (non-empty string). Returns 200 with empty body. Caller must have task-view permission for the task; 403 otherwise. Sender id is taken from the JWT, not from the body. No state guard — message goes through in any state.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+      message: z.string().describe("Message text (recommend ≤ 5000 chars)"),
+    },
+    { title: "Add task message" },
+    async (params) => {
+      // Endpoint is /api/tasks/messages (NOT /api/customer/tasks/messages — that path
+      // is method-mismatched with PUT /api/customer/tasks/{taskIdentifier} and produces 500).
+      const result = await client.post<unknown>("/tasks/messages", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"getTaskMessages",
-		"Get all messages for a specific task",
-		{
-			taskId: z.number().describe("Task ID"),
-		},
-		async ({ taskId }) => {
-			const result = await client.get(`/tasks/${taskId}/messages`)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"addTaskMessage",
-		"Add a message to a task",
-		{
-			taskId: z.number().describe("Task ID"),
-			message: z.string().describe("Message text"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/messages", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"addTaskFiles",
-		"Add files to a task",
-		{
-			taskId: z.number().optional().describe("Task ID"),
-			uuid: z.string().optional().describe("Task UUID"),
-			file: z.string().describe("File path"),
-			type: z
-				.number()
-				.optional()
-				.describe("File type (e.g. 5 = transfer of rights)"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/tasks/files", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "addTaskFiles",
+    "Upload a file attached to a task. Not allowed in FINISHED (5) or PAYMENT_QUEUED (12) — those return HTTP 400.",
+    {
+      taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
+      uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
+      file: z.string().describe("Path to a local file; client reads and uploads as multipart/form-data."),
+      type: z
+        .number()
+        .optional()
+        .describe(
+          "File type. Default 5 (TASKS_FILES — generic task attachment). Other values are reserved for system imports/documents and rarely needed.",
+        ),
+    },
+    { title: "Add task files" },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/tasks/files", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 }
