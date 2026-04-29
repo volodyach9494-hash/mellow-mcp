@@ -32,6 +32,25 @@ Single-Worker MCP server deployed on Cloudflare Workers. Acts as an OAuth proxy:
 
 Every module under `src/tools/` and `src/tools/scout/` exports one `registerXxxTools(server, client)` function that calls `server.tool(name, description, zodSchema, handler)`. Mellow tools use unprefixed names; Scout tools are prefixed `scout_`. Adding a tool = add a `server.tool(...)` call in the right module; wiring in `src/index.ts` is only needed when creating a **new module**.
 
+### Agent surface (primer + resources)
+
+The MCP server delivers three layers of context to any agent that connects:
+
+1. **`AGENT_PRIMER`** in `src/agent-primer.ts` — a ~6 KB markdown string passed as `McpServer({...}, { instructions })`. Returned in the `initialize` response and auto-injected as system prompt by clients (Claude Desktop, Cursor, Inspector). Keep it concise (~3–5 KB markdown). Update it when a *behavioural* expectation changes (e.g. the accept-and-pay pivot), not for every tool change.
+2. **MCP resources** registered in `src/index.ts` via `this.server.registerResource(...)`:
+   - `mellow://domain` → `docs/DOMAIN.md`
+   - `mellow://workflows` → `docs/WORKFLOWS.md`
+   - `mellow://anti-patterns` → `docs/ANTI_PATTERNS.md`
+3. **Tool descriptions** — every `server.tool(name, description, ...)` call. The description is the primary contract for that tool. Surface preconditions, error semantics, and known-bug warnings inline.
+
+The three markdown files are imported as strings via Wrangler's text loader (`wrangler.jsonc → rules`). The ambient declaration `declare module "*.md"` is provided by `wrangler types` (in `worker-configuration.d.ts`).
+
+**`docs/BACKEND_TICKETS.md`** is git-only and tracks open backend issues affecting MCP tools. It is **not** bundled in the worker and not served as a resource. The three agent-facing docs above (`DOMAIN`, `WORKFLOWS`, `ANTI_PATTERNS`) are the only ones the runtime agent ever sees.
+
+### Multi-company `X-Company-Id` plumbing
+
+`Props.activeCompanyId` (optional, in `src/utils.ts`) is read by `MyMCP.init()` and passed to `createMellowClient(baseUrl, accessToken, activeCompanyId)`. When set, every outbound HTTP request from `mellow-client.ts` carries `X-Company-Id: <id>`. This is the recommended path for multi-company users; `switchCompany` mutates a server-side default and races across parallel sessions.
+
 ### Mellow API client
 
 `src/mellow-client.ts` is intentionally thin: a closure over `{baseUrl, accessToken}` returning `{get, post, put, patch, del}`. It throws on non-2xx with the response body included — tool handlers let errors propagate and the MCP SDK surfaces them to the client. Query string filters for list endpoints use the bracketed form `filter[key]=value` (see `src/tools/tasks.ts` for the canonical example) — match this when adding new list tools.
@@ -49,6 +68,11 @@ Do not loosen these checks without understanding the injection attack they preve
 
 - Tabs for indentation (see `.prettierrc` — `useTabs: false` is contradicted by the actual codebase; keep tabs to match existing files).
 - No test framework is configured. `npm run type-check` is the only automated gate.
-- `worker-configuration.d.ts` is generated — never hand-edit. Regenerate after changing bindings or vars in `wrangler.jsonc`.
+- `worker-configuration.d.ts` is generated — never hand-edit. Regenerate after changing bindings or vars in `wrangler.jsonc`. Secret bindings (`MELLOW_CLIENT_ID`, `MELLOW_CLIENT_SECRET`, `COOKIE_ENCRYPTION_KEY`) are not picked up by `wrangler types`; they are declared in `src/types/env-secrets.d.ts` instead.
 - `Props` type in `src/utils.ts` is the contract between `MellowHandler` and `MyMCP`; adding a field requires updating both.
-- Secrets (`MELLOW_CLIENT_ID`, `MELLOW_CLIENT_SECRET`, `COOKIE_ENCRYPTION_KEY`) live in Wrangler secrets in prod and `.dev.vars` locally — never in `wrangler.jsonc`.
+- Secrets live in Wrangler secrets in prod and `.dev.vars` locally — never in `wrangler.jsonc`.
+- Markdown imports (`docs/*.md`) inside `src/` rely on Wrangler's text loader rule. New `.md` resources should be wired up in `src/index.ts` via `this.server.registerResource(...)` and (if exposed to agents) referenced from `AGENT_PRIMER`.
+
+## Known backend bugs
+
+Active bugs blocking certain MCP tools are documented in `docs/BACKEND_TICKETS.md`. Tool descriptions inline a brief note about ongoing issues. When a backend fix lands, update both the tool description and the ticket status.

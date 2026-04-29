@@ -10,25 +10,25 @@
  * @returns {string} The authorization URL.
  */
 export function getUpstreamAuthorizeUrl({
-	upstream_url,
-	client_id,
-	scope,
-	redirect_uri,
-	state,
+  upstream_url,
+  client_id,
+  scope,
+  redirect_uri,
+  state,
 }: {
-	upstream_url: string;
-	client_id: string;
-	scope: string;
-	redirect_uri: string;
-	state?: string;
+  upstream_url: string;
+  client_id: string;
+  scope: string;
+  redirect_uri: string;
+  state?: string;
 }) {
-	const upstream = new URL(upstream_url);
-	upstream.searchParams.set("client_id", client_id);
-	upstream.searchParams.set("redirect_uri", redirect_uri);
-	upstream.searchParams.set("scope", scope);
-	if (state) upstream.searchParams.set("state", state);
-	upstream.searchParams.set("response_type", "code");
-	return upstream.href;
+  const upstream = new URL(upstream_url);
+  upstream.searchParams.set("client_id", client_id);
+  upstream.searchParams.set("redirect_uri", redirect_uri);
+  upstream.searchParams.set("scope", scope);
+  if (state) upstream.searchParams.set("state", state);
+  upstream.searchParams.set("response_type", "code");
+  return upstream.href;
 }
 
 /**
@@ -44,102 +44,108 @@ export function getUpstreamAuthorizeUrl({
  * @returns {Promise<[string, null] | [null, Response]>} A promise that resolves to an array containing the access token or an error response.
  */
 export async function fetchUpstreamAuthToken({
-	client_id,
-	client_secret,
-	code,
-	redirect_uri,
-	upstream_url,
+  client_id,
+  client_secret,
+  code,
+  redirect_uri,
+  upstream_url,
 }: {
-	code: string | undefined;
-	upstream_url: string;
-	client_secret: string;
-	redirect_uri: string;
-	client_id: string;
+  code: string | undefined;
+  upstream_url: string;
+  client_secret: string;
+  redirect_uri: string;
+  client_id: string;
 }): Promise<[{ accessToken: string; refreshToken?: string }, null] | [null, Response]> {
-	if (!code) {
-		return [null, new Response("Missing code", { status: 400 })];
-	}
+  if (!code) {
+    return [null, new Response("Missing code", { status: 400 })];
+  }
 
-	const resp = await fetch(upstream_url, {
-		body: new URLSearchParams({
-			grant_type: "authorization_code",
-			client_id,
-			client_secret,
-			code,
-			redirect_uri,
-		}).toString(),
-		headers: {
-			"Accept": "application/json",
-			"Content-Type": "application/x-www-form-urlencoded",
-		},
-		method: "POST",
-	});
+  const resp = await fetch(upstream_url, {
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id,
+      client_secret,
+      code,
+      redirect_uri,
+    }).toString(),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    method: "POST",
+  });
 
-	if (!resp.ok) {
-		return [null, new Response("Failed to fetch access token", { status: 500 })];
-	}
+  if (!resp.ok) {
+    return [null, new Response("Failed to fetch access token", { status: 500 })];
+  }
 
-	const body = await resp.json() as { access_token?: string; id_token?: string; refresh_token?: string };
-	const accessToken = body.access_token;
-	if (!accessToken) {
-		return [null, new Response("Missing access token", { status: 400 })];
-	}
-	return [{ accessToken, refreshToken: body.refresh_token }, null];
+  const body = (await resp.json()) as { access_token?: string; id_token?: string; refresh_token?: string };
+  const accessToken = body.access_token;
+  if (!accessToken) {
+    return [null, new Response("Missing access token", { status: 400 })];
+  }
+  return [{ accessToken, refreshToken: body.refresh_token }, null];
 }
 
 /**
  * Refreshes an upstream access token using a refresh token.
  */
 export async function refreshUpstreamToken({
-	client_id,
-	client_secret,
-	refresh_token,
-	upstream_url,
+  client_id,
+  client_secret,
+  refresh_token,
+  upstream_url,
 }: {
-	client_id: string;
-	client_secret: string;
-	refresh_token: string;
-	upstream_url: string;
+  client_id: string;
+  client_secret: string;
+  refresh_token: string;
+  upstream_url: string;
 }): Promise<{ accessToken: string; refreshToken?: string } | null> {
-	try {
-		const resp = await fetch(upstream_url, {
-			body: new URLSearchParams({
-				grant_type: "refresh_token",
-				client_id,
-				client_secret,
-				refresh_token,
-			}).toString(),
-			headers: {
-				"Accept": "application/json",
-				"Content-Type": "application/x-www-form-urlencoded",
-			},
-			method: "POST",
-		});
+  try {
+    const resp = await fetch(upstream_url, {
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id,
+        client_secret,
+        refresh_token,
+      }).toString(),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      method: "POST",
+    });
 
-		if (!resp.ok) {
-			console.error("Upstream token refresh failed:", resp.status);
-			return null;
-		}
+    if (!resp.ok) {
+      console.error("Upstream token refresh failed:", resp.status);
+      return null;
+    }
 
-		const body = await resp.json() as { access_token?: string; id_token?: string; refresh_token?: string };
-		if (!body.access_token) {
-			console.error("Upstream token refresh returned no access_token");
-			return null;
-		}
+    const body = (await resp.json()) as { access_token?: string; id_token?: string; refresh_token?: string };
+    if (!body.access_token) {
+      console.error("Upstream token refresh returned no access_token");
+      return null;
+    }
 
-		return { accessToken: body.access_token, refreshToken: body.refresh_token };
-	} catch (error) {
-		console.error("Upstream token refresh error:", error);
-		return null;
-	}
+    return { accessToken: body.access_token, refreshToken: body.refresh_token };
+  } catch (error) {
+    console.error("Upstream token refresh error:", error);
+    return null;
+  }
 }
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
 export type Props = {
-	sub: string;
-	name: string;
-	email: string;
-	accessToken: string;
-	refreshToken?: string;
+  sub: string;
+  name: string;
+  email: string;
+  accessToken: string;
+  refreshToken?: string;
+  /**
+   * Optional active company context for multi-company users.
+   * When set, MellowClient sends `X-Company-Id: <activeCompanyId>` on every request.
+   * Per-tool `companyId` parameters override this on individual calls.
+   */
+  activeCompanyId?: number;
 };

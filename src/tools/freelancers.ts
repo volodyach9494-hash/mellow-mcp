@@ -1,302 +1,254 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { z } from "zod"
-import type { MellowClient } from "../mellow-client"
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { asStructuredList, type MellowClient } from "../mellow-client";
 
 export function registerFreelancerTools(server: McpServer, client: MellowClient) {
-	server.tool(
-		"listFreelancers",
-		"List freelancers with optional filters",
-		{
-			taxationStatusId: z.number().optional().describe("Filter by taxation status ID"),
-			isVerified: z.boolean().optional().describe("Filter by verification status"),
-			isInviteEmailSent: z
-				.boolean()
-				.optional()
-				.describe("Filter by invite email sent status"),
-			dateInvitedFrom: z.string().optional().describe("Filter by invite date from"),
-			dateInvitedTo: z.string().optional().describe("Filter by invite date to"),
-			page: z.number().optional().describe("Page number"),
-			size: z.number().max(500).optional().describe("Page size (max 500)"),
-		},
-		async (params) => {
-			const result = await client.get("/customer/freelancers", {
-				"filter[taxationStatusId]": params.taxationStatusId?.toString(),
-				"filter[isVerified]": params.isVerified?.toString(),
-				"filter[isInviteEmailSent]": params.isInviteEmailSent?.toString(),
-				"filter[dateInvitedFrom]": params.dateInvitedFrom,
-				"filter[dateInvitedTo]": params.dateInvitedTo,
-				page: params.page?.toString(),
-				size: params.size?.toString(),
-			})
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "listFreelancers",
+    "List freelancers in the active company. Excluded freelancers are NOT returned. The response has no `agree` field — distinguish active vs invited via `isRegistered` and `actualRegDate`. Default sort: id desc. size cap 500 (silent fallback to 20 above).",
+    {
+      taxationStatusId: z.number().optional().describe("Filter by taxation status ID"),
+      isVerified: z.boolean().optional().describe("Filter by verification status"),
+      isRegistered: z.boolean().optional().describe("Filter by registration status (has the freelancer activated their account?)"),
+      isInviteEmailSent: z.boolean().optional().describe("Filter by invite email sent status"),
+      dateInvitedFrom: z.string().optional().describe("Filter by invite date from"),
+      dateInvitedTo: z.string().optional().describe("Filter by invite date to"),
+      dateRegisteredFrom: z.string().optional().describe("Filter by registration date from"),
+      dateRegisteredTo: z.string().optional().describe("Filter by registration date to"),
+      dateVerifiedFrom: z.string().optional().describe("Filter by verification date from"),
+      dateVerifiedTo: z.string().optional().describe("Filter by verification date to"),
+      workerCategoryId: z.array(z.number()).optional().describe("Filter by worker category IDs (OR)"),
+      country: z.array(z.string()).optional().describe("Filter by country codes (OR)"),
+      search: z.string().optional().describe("Search across email, name, phone, id, uuid"),
+      note: z.string().optional().describe("Filter by note text"),
+      id: z.number().optional().describe("Filter by freelancer ID"),
+      uuid: z.string().optional().describe("Filter by freelancer UUID"),
+      email: z.string().optional().describe("Filter by exact email"),
+      sort: z
+        .enum(["id", "dateVerified", "actualRegDate", "inviteSentAt", "email", "name"])
+        .optional()
+        .describe("Sort field (default: id)"),
+      direction: z.enum(["asc", "desc"]).optional().describe("Sort direction (default: desc)"),
+      page: z.number().optional().describe("Page number"),
+      size: z.number().max(500).optional().describe("Page size (max 500). Values > 500 silently fall back to 20."),
+    },
+    { title: "List freelancers", readOnlyHint: true },
+    async (params) => {
+      const queryParams: Record<string, string | undefined> = {
+        "filter[taxationStatusId]": params.taxationStatusId?.toString(),
+        "filter[isVerified]": params.isVerified?.toString(),
+        "filter[isRegistered]": params.isRegistered?.toString(),
+        "filter[isInviteEmailSent]": params.isInviteEmailSent?.toString(),
+        "filter[dateInvitedFrom]": params.dateInvitedFrom,
+        "filter[dateInvitedTo]": params.dateInvitedTo,
+        "filter[dateRegisteredFrom]": params.dateRegisteredFrom,
+        "filter[dateRegisteredTo]": params.dateRegisteredTo,
+        "filter[dateVerifiedFrom]": params.dateVerifiedFrom,
+        "filter[dateVerifiedTo]": params.dateVerifiedTo,
+        "filter[search]": params.search,
+        "filter[note]": params.note,
+        "filter[id]": params.id?.toString(),
+        "filter[uuid]": params.uuid,
+        "filter[email]": params.email,
+        sort: params.sort,
+        direction: params.direction,
+        page: params.page?.toString(),
+        size: params.size?.toString(),
+      };
 
-	server.tool(
-		"getFreelancer",
-		"Get detailed information about a specific freelancer",
-		{
-			freelancerId: z
-				.string()
-				.describe("Freelancer ID (numeric) or UUID"),
-		},
-		async ({ freelancerId }) => {
-			const result = await client.get(`/customer/freelancers/${freelancerId}`)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+      if (params.workerCategoryId?.length) {
+        for (const cid of params.workerCategoryId) {
+          queryParams[`filter[workerCategoryId][]`] = cid.toString();
+        }
+      }
+      if (params.country?.length) {
+        for (const c of params.country) {
+          queryParams[`filter[country][]`] = c;
+        }
+      }
 
-	server.tool(
-		"inviteFreelancer",
-		"Invite a new freelancer to join the team",
-		{
-			email: z.string().describe("Freelancer email address"),
-			phone: z.string().optional().describe("Phone number"),
-			firstName: z.string().optional().describe("First name"),
-			lastName: z.string().optional().describe("Last name"),
-			middleName: z.string().optional().describe("Middle name"),
-			citizenship: z.string().optional().describe("Citizenship country code"),
-			address: z.string().optional().describe("Address"),
-			postalCode: z.string().optional().describe("Postal code"),
-			city: z.string().optional().describe("City"),
-			state: z.string().optional().describe("State/region"),
-			country: z.string().optional().describe("Country code"),
-			birthdate: z.string().optional().describe("Birth date"),
-			birthCountry: z.string().optional().describe("Birth country code"),
-			specialization: z.number().optional().describe("Specialization ID"),
-			note: z.string().optional().describe("Note about the freelancer"),
-			inEnglish: z
-				.boolean()
-				.optional()
-				.describe("Send invitation in English"),
-			sendEmail: z
-				.boolean()
-				.optional()
-				.describe("Whether to send invitation email"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/freelancers", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+      const result = await client.get<unknown>("/customer/freelancers", queryParams);
+      return {
+        structuredContent: asStructuredList(result),
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"findFreelancerByEmail",
-		"Find a freelancer by their email address",
-		{
-			email: z.string().describe("Email address to search"),
-		},
-		async ({ email }) => {
-			const result = await client.get(
-				`/customer/freelancer-by-email/${encodeURIComponent(email)}`,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "getFreelancer",
+    "Get one freelancer card from the active company. Accepts numeric ID or UUID — UUID preferred. Returns the same shape as one row of listFreelancers (no nested tax/payout/agreement blocks — those are separate endpoints). 404 covers both 'not found' and 'wrong company' (security-by-obscurity); excluded freelancers also return 404.",
+    {
+      freelancerId: z.string().describe("Freelancer ID (numeric) or UUID. UUID preferred."),
+    },
+    { title: "Get freelancer", readOnlyHint: true },
+    async ({ freelancerId }) => {
+      const result = await client.get<unknown>(`/customer/freelancers/${freelancerId}`);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"findFreelancerByPhone",
-		"Find a freelancer by their phone number",
-		{
-			phone: z.string().describe("Phone number to search"),
-		},
-		async ({ phone }) => {
-			const result = await client.get(
-				`/customer/freelancer-by-phone/${encodeURIComponent(phone)}`,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "inviteFreelancer",
+    "Invite a freelancer to the active company by email. Creates the user if they don't exist, then adds membership. Returns {uuid, freelancerId}. Idempotency: re-inviting an already-active membership → HTTP 422 'already in team'; concurrent invites on the same email → HTTP 423 (short backend lock). For new users name/address/birthdate apply at creation; for existing freelancers only `note` and `specialization` are saved, the rest is ignored. `phone` is silently ignored if the company doesn't have phone-feature enabled.",
+    {
+      email: z.string().describe("Freelancer email address"),
+      phone: z.string().optional().describe("Phone number (silently ignored if company doesn't have phone-feature)"),
+      firstName: z.string().optional().describe("First name (applied only at user creation)"),
+      lastName: z.string().optional().describe("Last name (applied only at user creation)"),
+      middleName: z.string().optional().describe("Middle name (applied only at user creation)"),
+      citizenship: z.string().optional().describe("Citizenship country code (applied only at user creation)"),
+      address: z.string().optional().describe("Address (applied only at user creation)"),
+      postalCode: z.string().optional().describe("Postal code (applied only at user creation)"),
+      city: z.string().optional().describe("City (applied only at user creation)"),
+      state: z.string().optional().describe("State/region (applied only at user creation)"),
+      country: z.string().optional().describe("Country code (applied only at user creation)"),
+      birthdate: z.string().optional().describe("Birth date (applied only at user creation)"),
+      birthCountry: z.string().optional().describe("Birth country code (applied only at user creation)"),
+      specialization: z
+        .number()
+        .optional()
+        .describe("Specialization ID (numeric) from getSpecializations(). Saved per-freelancer globally."),
+      note: z.string().optional().describe("Per-company note about the freelancer"),
+      inEnglish: z
+        .boolean()
+        .optional()
+        .describe("If true, forces English for the new user's profile language and the invitation email. Only EN/RU supported here."),
+      sendEmail: z
+        .boolean()
+        .optional()
+        .describe(
+          "Whether to send the invitation email (default: true). Pass false for bulk import / custom onboarding / pre-creating membership without email.",
+        ),
+      redirectUrl: z.string().optional().describe("Redirect URL after the freelancer accepts the invite"),
+    },
+    { title: "Invite freelancer", openWorldHint: true },
+    async (params) => {
+      const result = await client.post<unknown>("/customer/freelancers", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"editFreelancer",
-		"Edit freelancer information (name, note, specialization)",
-		{
-			freelancerId: z.number().describe("Freelancer ID"),
-			firstName: z.string().optional().describe("First name"),
-			lastName: z.string().optional().describe("Last name"),
-			note: z.string().optional().describe("Note"),
-			specialization: z.string().optional().describe("Specialization"),
-			freelancerUuid: z.string().optional().describe("Freelancer UUID"),
-			companyId: z.number().optional().describe("Company ID"),
-		},
-		async (params) => {
-			const result = await client.put("/customer/freelancers", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "findFreelancerByEmail",
+    "Find a freelancer in the active company by email. Returns the same shape as getFreelancer. Case-sensitive — pass lowercase.",
+    {
+      email: z.string().describe("Email address to search (lowercase recommended)"),
+    },
+    { title: "Find freelancer by email", readOnlyHint: true },
+    async ({ email }) => {
+      const result = await client.get<unknown>(`/customer/freelancer-by-email/${encodeURIComponent(email)}`);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"editFreelancerProfile",
-		"Edit profile of an unregistered freelancer",
-		{
-			freelancerId: z.number().optional().describe("Freelancer ID"),
-			freelancerUuid: z.string().optional().describe("Freelancer UUID"),
-			firstName: z.string().optional().describe("First name"),
-			lastName: z.string().optional().describe("Last name"),
-			middleName: z.string().optional().describe("Middle name"),
-			residenceCountry: z.string().optional().describe("Residence country code"),
-			citizenship: z.string().optional().describe("Citizenship country code"),
-			birthDate: z.string().optional().describe("Birth date (ISO 8601)"),
-			birthCountry: z.string().optional().describe("Birth country code"),
-			city: z.string().optional().describe("City"),
-			address: z.string().optional().describe("Address"),
-			postalCode: z.string().optional().describe("Postal code"),
-			state: z.string().optional().describe("State/region"),
-			language: z
-				.enum(["EN", "RU"])
-				.optional()
-				.describe("Language preference"),
-		},
-		async (params) => {
-			const result = await client.patch("/customer/freelancers/profile", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "findFreelancerByPhone",
+    "Find a freelancer in the active company by phone. Pass DIGITS ONLY — no '+', spaces, or dashes (those return 404). Phone uniqueness is global at the user level, but visibility is per-company. Returns HTTP 403 if the company doesn't have the phone-search feature enabled (contact Mellow support to enable it).",
+    {
+      phone: z.string().describe("Phone number — digits only, no '+', spaces, or dashes"),
+    },
+    { title: "Find freelancer by phone", readOnlyHint: true },
+    async ({ phone }) => {
+      const result = await client.get<unknown>(`/customer/freelancer-by-phone/${encodeURIComponent(phone)}`);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"requestContactChangeCode",
-		"Request a verification code to change freelancer contact details",
-		{
-			freelancerId: z.number().describe("Freelancer ID"),
-			email: z.string().optional().describe("New email address"),
-			phone: z.string().optional().describe("New phone number"),
-		},
-		async (params) => {
-			const result = await client.post(
-				"/customer/freelancers/request-code-for-change-contacts",
-				params,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "editFreelancer",
+    "Edit per-company alias fields of a freelancer: firstName, lastName, note, specialization. WARNING: PUT semantics — fields not passed are reset to empty string. Always pass all four fields, or use a read-then-write pattern. firstName/lastName here are the per-company alias used in agreement/payslip templates, NOT the freelancer's KYC name. Email/phone/address/birthdate cannot be edited via this tool.",
+    {
+      freelancerId: z.number().describe("Freelancer ID. Provide this OR freelancerUuid."),
+      freelancerUuid: z.string().optional().describe("Freelancer UUID. Provide this OR freelancerId."),
+      firstName: z.string().optional().describe("Per-company alias first name. Will be cleared if not passed."),
+      lastName: z.string().optional().describe("Per-company alias last name. Will be cleared if not passed."),
+      note: z.string().optional().describe("Per-company note. Will be cleared if not passed."),
+      specialization: z.number().optional().describe("Specialization ID from getSpecializations(). Saved globally."),
+    },
+    { title: "Edit freelancer alias", idempotentHint: true },
+    async (params) => {
+      const result = await client.put<unknown>("/customer/freelancers", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"confirmContactChange",
-		"Confirm contact details change with verification code",
-		{
-			freelancerId: z.number().describe("Freelancer ID"),
-			code: z.string().describe("Verification code"),
-		},
-		async (params) => {
-			const result = await client.post(
-				"/customer/freelancers/change-contacts",
-				params,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "editFreelancerProfile",
+    "Patch the GLOBAL profile of a freelancer BEFORE they activate or pass KYC. PATCH semantics — partial updates are safe (fields not passed are preserved). After activation/verification the entire profile is read-only and any field edit returns HTTP 409 (lock is bulk, not per-field).",
+    {
+      freelancerId: z.number().optional().describe("Freelancer ID. Provide this OR freelancerUuid."),
+      freelancerUuid: z.string().optional().describe("Freelancer UUID. Provide this OR freelancerId."),
+      firstName: z.string().optional().describe("First name"),
+      lastName: z.string().optional().describe("Last name"),
+      middleName: z.string().optional().describe("Middle name"),
+      residenceCountry: z.string().optional().describe("Residence country code"),
+      citizenship: z.string().optional().describe("Citizenship country code"),
+      birthDate: z.string().optional().describe("Birth date (ISO 8601)"),
+      birthCountry: z.string().optional().describe("Birth country code"),
+      city: z.string().optional().describe("City"),
+      address: z.string().optional().describe("Address"),
+      postalCode: z.string().optional().describe("Postal code"),
+      state: z.string().optional().describe("State/region"),
+      language: z
+        .enum(["EN", "RU", "ES", "PT"])
+        .optional()
+        .describe("Profile language (UI, emails, templates). Supported: EN, RU, ES, PT."),
+    },
+    { title: "Edit freelancer profile", idempotentHint: true },
+    async (params) => {
+      const result = await client.patch<unknown>("/customer/freelancers/profile", params);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"getVerificationLink",
-		"Generate a verification link for a freelancer",
-		{
-			freelancerId: z.number().describe("Freelancer ID"),
-			redirectUrl: z.string().optional().describe("Redirect URL after verification"),
-		},
-		async ({ freelancerId, redirectUrl }) => {
-			const result = await client.get("/customer/freelancers/verification-link", {
-				freelancerId: freelancerId.toString(),
-				redirectUrl,
-			})
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "removeFreelancer",
+    "Soft-delete the freelancer's membership in the active company. Backend BLOCKS the delete with HTTP 422 'Worker have not finished tasks' if any task is in a non-terminal state in this company — so no task-zombies. The DELETE is async — HTTP 200 returns before the status flip is fully reflected. Re-invite reactivates the same membership record (per-company note + specialization survive). Idempotent on already-excluded freelancers.",
+    {
+      freelancerId: z.number().describe("Freelancer ID to remove"),
+    },
+    { title: "Remove freelancer", destructiveHint: true, idempotentHint: true },
+    async ({ freelancerId }) => {
+      const result = await client.del<unknown>(`/customer/freelancers/${freelancerId}`);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 
-	server.tool(
-		"removeFreelancer",
-		"Remove a freelancer from the team",
-		{
-			freelancerId: z.number().describe("Freelancer ID to remove"),
-		},
-		async ({ freelancerId }) => {
-			const result = await client.del(`/customer/freelancers/${freelancerId}`)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"acceptOfferAgreement",
-		"Accept an offer agreement on behalf of a freelancer",
-		{
-			freelancerId: z.number().optional().describe("Freelancer ID"),
-			freelancerUuid: z.string().optional().describe("Freelancer UUID"),
-			templateUuid: z.string().optional().describe("Template UUID"),
-		},
-		async (params) => {
-			const result = await client.post(
-				"/customer/freelancers/accept-offer",
-				params,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"getFreelancerTaxInfo",
-		"Get tax information for a freelancer",
-		{
-			freelancerId: z.number().describe("Freelancer ID"),
-		},
-		async ({ freelancerId }) => {
-			const result = await client.get(`/customer/freelancers/tax-info/${freelancerId}`)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"addTaxpayerId",
-		"Add a taxpayer ID number for a freelancer",
-		{
-			freelancerId: z.string().optional().describe("Freelancer ID"),
-			freelancerUuid: z.string().optional().describe("Freelancer UUID"),
-			taxResidenceCountry: z.string().describe("Tax residence country code"),
-			type: z.string().describe("Tax ID type"),
-			taxNumber: z.string().describe("Tax number"),
-			vatNumber: z.string().optional().describe("VAT number"),
-			regNumber: z.string().optional().describe("Registration number"),
-		},
-		async (params) => {
-			const result = await client.post("/customer/freelancers/tax-info", params)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"linkTaxNumber",
-		"Link a Russian tax number (INN) to a freelancer",
-		{
-			freelancerId: z.number().optional().describe("Freelancer ID"),
-			freelancerUuid: z.string().optional().describe("Freelancer UUID"),
-			taxNumber: z
-				.number()
-				.describe("Russian tax number (INN, 10 or 12 digits)"),
-		},
-		async (params) => {
-			const result = await client.post(
-				"/customer/freelancer/tax-info/link-tax-number",
-				params,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
-
-	server.tool(
-		"changeTaxationStatus",
-		"Change a freelancer's taxation status",
-		{
-			freelancerId: z.number().optional().describe("Freelancer ID"),
-			freelancerUuid: z.string().optional().describe("Freelancer UUID"),
-			taxationStatusId: z
-				.number()
-				.describe("Taxation status: 1=individual, 3=self-employed, 4=entrepreneur"),
-		},
-		async (params) => {
-			const result = await client.post(
-				"/customer/freelancers/change-taxation-status",
-				params,
-			)
-			return { content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }] }
-		},
-	)
+  server.tool(
+    "getFreelancerTaxInfo",
+    "Get tax metadata for a freelancer (5 fields: taxResidenceCountry, type/taxDocumentType, taxNumber, vatNumber, regNumber). HTTP 404 means 'no tax data filled in', not 'freelancer doesn't exist'. Only the customer of the active company can read; switch company to read for another. taxationStatusId is on the regular getFreelancer response, not here.",
+    {
+      freelancerId: z.number().describe("Freelancer ID"),
+    },
+    { title: "Get freelancer tax info", readOnlyHint: true },
+    async ({ freelancerId }) => {
+      const result = await client.get<unknown>(`/customer/freelancers/tax-info/${freelancerId}`);
+      return {
+        structuredContent: result as { [key: string]: unknown },
+        content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
+      };
+    },
+  );
 }
