@@ -27,8 +27,8 @@ export function registerScoutLookupTools(server: McpServer, client: MellowClient
     { title: "Scout: get short link", readOnlyHint: true },
     async ({ referenceType, referenceId }) => {
       const result = await client.get<unknown>("/short-link/", {
-        referenceType,
-        referenceId,
+        reference_type: referenceType,
+        reference_id: referenceId,
       });
       return {
         structuredContent: asStructuredObject(result),

@@ -194,7 +194,7 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
     },
     { title: "Scout: share position", openWorldHint: true },
     async ({ positionId, shareTarget }) => {
-      const result = await client.post<unknown>(`/positions/${positionId}/share`, { shareTarget });
+      const result = await client.post<unknown>(`/positions/${positionId}/share`, { share_target: shareTarget });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
