@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { asStructuredList, type MellowClient } from "../mellow-client";
+import { asStructuredList, asStructuredObject, type MellowClient } from "../mellow-client";
 
 export function registerTaskTools(server: McpServer, client: MellowClient) {
   server.tool(
@@ -97,7 +97,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async ({ taskId }) => {
       const result = await client.get<unknown>(`/customer/tasks/${taskId}`);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -165,7 +165,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
       const normalizedTitle = params.title.replace(/[—–]/g, "-").replace(/[“”]/g, '"').replace(/[‘’`]/g, "").replace(/[  ]/g, " ");
       const result = await client.post<unknown>("/customer/tasks", { ...params, title: normalizedTitle });
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -186,7 +186,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/publish-draft", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -228,7 +228,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async ({ taskId, state }) => {
       const result = await client.put<unknown>(`/customer/tasks/${taskId}`, { state });
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -246,7 +246,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/prolong-deadline", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -263,7 +263,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async ({ taskUuid, freelancerUuid }) => {
       const result = await client.get<unknown>("/customer/freelancers/check-task-requirements", { taskUuid, freelancerUuid });
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -280,7 +280,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/accept", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -297,7 +297,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/pay", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -314,7 +314,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/decline", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -331,7 +331,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/return-to-work", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -379,7 +379,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
       // is method-mismatched with PUT /api/customer/tasks/{taskIdentifier} and produces 500).
       const result = await client.post<unknown>("/tasks/messages", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
@@ -403,7 +403,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     async (params) => {
       const result = await client.post<unknown>("/customer/tasks/files", params);
       return {
-        structuredContent: result as { [key: string]: unknown },
+        structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
       };
     },
