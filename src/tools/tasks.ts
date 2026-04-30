@@ -2,6 +2,18 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { asStructuredList, asStructuredObject, type MellowClient } from "../mellow-client";
 
+async function resolveTaskId(client: MellowClient, params: { taskId?: number; uuid?: string }): Promise<number> {
+  if (params.taskId !== undefined) return params.taskId;
+  if (!params.uuid) {
+    throw new Error("Either taskId or uuid must be provided");
+  }
+  const task = await client.get<{ id: number }>(`/customer/tasks/${params.uuid}`);
+  if (typeof task?.id !== "number") {
+    throw new Error(`Could not resolve UUID ${params.uuid} to a numeric task ID`);
+  }
+  return task.id;
+}
+
 export function registerTaskTools(server: McpServer, client: MellowClient) {
   server.tool(
     "listTasks",
@@ -226,7 +238,8 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Change task status" },
     async ({ taskId, state }) => {
-      const result = await client.put<unknown>(`/customer/tasks/${taskId}`, { state });
+      const numeric = /^\d+$/.test(taskId) ? Number(taskId) : await resolveTaskId(client, { uuid: taskId });
+      const result = await client.put<unknown>(`/customer/tasks/${numeric}`, { state });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
@@ -244,7 +257,8 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Extend task deadline" },
     async (params) => {
-      const result = await client.post<unknown>("/customer/tasks/prolong-deadline", params);
+      const taskId = await resolveTaskId(client, params);
+      const result = await client.post<unknown>("/customer/tasks/prolong-deadline", { taskId, deadline: params.deadline });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
@@ -278,7 +292,8 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Accept task result" },
     async (params) => {
-      const result = await client.post<unknown>("/customer/tasks/accept", params);
+      const taskId = await resolveTaskId(client, params);
+      const result = await client.post<unknown>("/customer/tasks/accept", { taskId });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
@@ -295,7 +310,8 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Pay for task" },
     async (params) => {
-      const result = await client.post<unknown>("/customer/tasks/pay", params);
+      const taskId = await resolveTaskId(client, params);
+      const result = await client.post<unknown>("/customer/tasks/pay", { taskId });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
@@ -312,7 +328,8 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Confirm freelancer decline" },
     async (params) => {
-      const result = await client.post<unknown>("/customer/tasks/decline", params);
+      const taskId = await resolveTaskId(client, params);
+      const result = await client.post<unknown>("/customer/tasks/decline", { taskId });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
@@ -329,7 +346,8 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Resume task for rework" },
     async (params) => {
-      const result = await client.post<unknown>("/customer/tasks/return-to-work", params);
+      const taskId = await resolveTaskId(client, params);
+      const result = await client.post<unknown>("/customer/tasks/return-to-work", { taskId });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
@@ -375,9 +393,10 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
     },
     { title: "Add task message" },
     async (params) => {
+      const taskId = await resolveTaskId(client, params);
       // Endpoint is /api/tasks/messages (NOT /api/customer/tasks/messages — that path
       // is method-mismatched with PUT /api/customer/tasks/{taskIdentifier} and produces 500).
-      const result = await client.post<unknown>("/tasks/messages", params);
+      const result = await client.post<unknown>("/tasks/messages", { taskId, message: params.message });
       return {
         structuredContent: asStructuredObject(result),
         content: [{ text: JSON.stringify(result, null, 2), type: "text" as const }],
