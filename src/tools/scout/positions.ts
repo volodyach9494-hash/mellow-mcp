@@ -101,7 +101,7 @@ export function registerScoutPositionTools(server: McpServer, client: MellowClie
 
   server.tool(
     "scout_updatePosition",
-    "Update an existing position",
+    "Update an existing position. BACKEND ISSUE (2026-04-30): PUT /positions/{uuid} returns 500 Internal Server Error even with valid payload. Until fixed, prefer scout_closePosition + scout_createPosition as a workaround for breaking-change updates.",
     {
       positionId: z.string().uuid().describe("Position UUID"),
       title: z.string().describe("Position title"),

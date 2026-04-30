@@ -13,7 +13,7 @@ export function registerWebhookTools(server: McpServer, client: MellowClient) {
 
   server.tool(
     "createOrUpdateWebhook",
-    "Create or update a webhook configuration. Only one webhook per company; receiver MUST be idempotent (up to 6 retries within ~30 minutes).",
+    "Create or update a webhook configuration. Only one webhook per company; receiver MUST be idempotent (up to 6 retries within ~30 minutes). BACKEND ISSUE (2026-04-30): POST /api/webhooks returns 404 — endpoint not implemented. Tool returns the underlying error; do not expect success until backend ticket lands.",
     {
       url: z.string().describe("Webhook URL to receive events"),
       events: z.array(z.string()).describe("List of event types to subscribe to"),
@@ -30,7 +30,7 @@ export function registerWebhookTools(server: McpServer, client: MellowClient) {
 
   server.tool(
     "deleteWebhook",
-    "Delete a webhook.",
+    "Delete a webhook. BACKEND ISSUE (2026-04-30): DELETE /api/webhooks/{id} returns 404 — endpoint not implemented.",
     {
       webhookId: z.number().describe("Webhook ID to delete"),
     },

@@ -185,7 +185,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
 
   server.tool(
     "publishDraftTask",
-    "Publish a draft task (DRAFT → NEW). Provide either taskId or uuid (not both).",
+    "Publish a draft task (DRAFT → NEW). Provide either taskId or uuid (not both). Returns HTTP 409 'Top-up your balance' if the company balance is insufficient — pre-check getCompanyBalance.",
     {
       taskId: z.number().optional().describe("Task ID (numeric). Provide this OR uuid."),
       uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
@@ -303,7 +303,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
 
   server.tool(
     "payForTask",
-    "Trigger payout for a task already accepted. Legal only in FOR_PAYMENT (4). Transitions FOR_PAYMENT → PAYMENT_QUEUED (12); the final debit to FINISHED (5) is asynchronous. Returns HTTP 400 if balance is insufficient — pre-check getCompanyBalance.",
+    "Trigger payout for a task already accepted. Legal only in FOR_PAYMENT (4). Transitions FOR_PAYMENT → PAYMENT_QUEUED (12); the final debit to FINISHED (5) is asynchronous. Returns HTTP 422 'There is a lack of funds…' if balance is insufficient — pre-check getCompanyBalance.",
     {
       taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
       uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),
@@ -357,7 +357,7 @@ export function registerTaskTools(server: McpServer, client: MellowClient) {
 
   server.tool(
     "getTaskMessages",
-    "Get all messages for a task. Pass either taskId (numeric) or uuid.",
+    "Get all messages for a task. Pass either taskId (numeric) or uuid. BACKEND ISSUE (2026-04-30): returns 500 Internal Server Error on tasks in DRAFT (state 17) — the messages collection is not initialised until the task is published. Call only after publishDraftTask.",
     {
       taskId: z.number().optional().describe("Task ID. Provide this OR uuid."),
       uuid: z.string().optional().describe("Task UUID. Provide this OR taskId."),

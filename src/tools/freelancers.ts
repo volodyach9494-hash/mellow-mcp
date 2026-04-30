@@ -222,7 +222,7 @@ export function registerFreelancerTools(server: McpServer, client: MellowClient)
 
   server.tool(
     "removeFreelancer",
-    "Soft-delete the freelancer's membership in the active company. Backend BLOCKS the delete with HTTP 422 'Worker have not finished tasks' if any task is in a non-terminal state in this company — so no task-zombies. The DELETE is async — HTTP 200 returns before the status flip is fully reflected. Re-invite reactivates the same membership record (per-company note + specialization survive). Idempotent on already-excluded freelancers.",
+    "Soft-delete the freelancer's membership in the active company. BACKEND ISSUE (2026-04-30): DELETE /api/customer/freelancers/{id} returns 405 Method Not Allowed — possibly wrong HTTP verb or path. Backend BLOCKS the delete with HTTP 422 'Worker have not finished tasks' if any task is in a non-terminal state in this company — so no task-zombies. The DELETE is async — HTTP 200 returns before the status flip is fully reflected. Re-invite reactivates the same membership record (per-company note + specialization survive). Idempotent on already-excluded freelancers.",
     {
       freelancerId: z.number().describe("Freelancer ID to remove"),
     },

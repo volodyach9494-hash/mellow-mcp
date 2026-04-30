@@ -31,7 +31,7 @@ export function registerDocumentTools(server: McpServer, client: MellowClient) {
 
   server.tool(
     "downloadDocument",
-    "Download a specific document by ID.",
+    "Download a specific document by ID. BACKEND ISSUE (2026-04-30): GET /api/customer/documents/{id}/download returns 404 — endpoint missing. Until fixed, surface the document's metadata via listDocuments and ask the user to download via the Mellow web UI.",
     {
       documentId: z.number().describe("Document ID"),
     },
