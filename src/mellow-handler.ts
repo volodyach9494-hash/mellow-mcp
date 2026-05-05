@@ -177,6 +177,29 @@ app.get("/callback", async (c) => {
 	}
 	const { sub, name, email } = await userResponse.json() as { sub: string; name: string; email: string };
 
+	// Probe Mellow API to determine account role. JWT does not carry the
+	// customer/freelancer distinction — we have to ask the API. On any
+	// failure, default to 'customer' to preserve existing behavior.
+	let userRole: "customer" | "freelancer" = "customer";
+	try {
+		const profileResponse = await fetch(`${c.env.MELLOW_API_BASE_URL}/profile`, {
+			headers: {
+				Authorization: `Bearer ${tokens.accessToken}`,
+				Accept: "application/json",
+			},
+		});
+		if (profileResponse.ok) {
+			const profile = await profileResponse.json() as { type?: string };
+			if (profile.type === "freelancer" || profile.type === "customer") {
+				userRole = profile.type;
+			}
+		} else {
+			console.warn(`/api/profile probe returned ${profileResponse.status}; defaulting role to 'customer'`);
+		}
+	} catch (err) {
+		console.warn(`/api/profile probe failed; defaulting role to 'customer':`, err);
+	}
+
 	// Return back to the MCP client a new token
 	const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
 		metadata: {
@@ -189,6 +212,7 @@ app.get("/callback", async (c) => {
 			email,
 			name,
 			sub,
+			userRole,
 		} as Props,
 		request: oauthReqInfo,
 		scope: oauthReqInfo.scope,
