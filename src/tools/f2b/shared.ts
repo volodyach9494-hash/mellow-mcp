@@ -57,36 +57,14 @@ export const F2B_CLIENT_STATUS = [
 export type F2bClientStatus = (typeof F2B_CLIENT_STATUS)[number];
 
 // Backend invoice status
-export const F2B_INVOICE_STATUS = [
-  "new",
-  "sent",
-  "payment_queued",
-  "paid",
-  "cancelled",
-] as const;
+export const F2B_INVOICE_STATUS = ["new", "sent", "payment_queued", "paid", "cancelled"] as const;
 export type F2bInvoiceStatus = (typeof F2B_INVOICE_STATUS)[number];
 
 // Acquiring transaction status (only meaningful when acquiringEnabled = true)
-export const F2B_ACQUIRING_STATUS = [
-  "notInitiated",
-  "initiated",
-  "completed",
-  "failed",
-] as const;
+export const F2B_ACQUIRING_STATUS = ["notInitiated", "initiated", "completed", "failed"] as const;
 
 // Line item measure (10 fixed values)
-export const F2B_MEASURE = [
-  "item",
-  "hour",
-  "day",
-  "week",
-  "month",
-  "kg",
-  "ton",
-  "liter",
-  "cubic_meter",
-  "km",
-] as const;
+export const F2B_MEASURE = ["item", "hour", "day", "week", "month", "kg", "ton", "liter", "cubic_meter", "km"] as const;
 
 // Reusable Zod schemas
 export const f2bCurrencyEnum = z.enum(["EUR", "USD"]);
@@ -96,19 +74,10 @@ export const f2bMeasureEnum = z.enum(F2B_MEASURE);
 export const f2bCommissionPayerEnum = z.enum(["freelancer", "customer"]);
 
 export const f2bLineItemSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(1024)
-    .describe("Line item label, no HTML, 1–1024 chars"),
+  name: z.string().min(1).max(1024).describe("Line item label, no HTML, 1–1024 chars"),
   quantity: z.number().positive().describe("Must be > 0"),
-  measure: f2bMeasureEnum.describe(
-    "One of: item, hour, day, week, month, kg, ton, liter, cubic_meter, km",
-  ),
-  price: z
-    .number()
-    .positive()
-    .describe("Unit price in client currency, must be > 0"),
+  measure: f2bMeasureEnum.describe("One of: item, hour, day, week, month, kg, ton, liter, cubic_meter, km"),
+  price: z.number().positive().describe("Unit price in client currency, must be > 0"),
 });
 
 export type F2bLineItem = z.infer<typeof f2bLineItemSchema>;

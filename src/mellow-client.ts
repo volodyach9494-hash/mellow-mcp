@@ -75,11 +75,7 @@ export function createMellowClient(baseUrl: string, accessToken: string, activeC
       const text = await response.text();
       const traceId = response.headers.get("x-trace-id");
       const cfRay = response.headers.get("cf-ray");
-      const traceSuffix = traceId
-        ? ` [trace=${traceId}]`
-        : cfRay
-          ? ` [cf-ray=${cfRay}]`
-          : "";
+      const traceSuffix = traceId ? ` [trace=${traceId}]` : cfRay ? ` [cf-ray=${cfRay}]` : "";
       throw new Error(`Mellow API ${method} ${path} failed (${response.status})${traceSuffix}: ${text}`);
     }
 
