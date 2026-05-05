@@ -5,6 +5,7 @@
 **Goal:** Add 9 F2B (freelancer-to-business) MCP tools that let an authenticated freelancer manage F2B clients (create/list/update/archive) and invoices (createDraft → sendDraft, get/list/cancel) end-to-end, with composite client+invoice creation and a mandatory show-before-send invariant.
 
 **Architecture:**
+
 - One probe `GET /api/profile` in `MellowHandler` callback determines `userRole: 'customer' | 'freelancer'`, persisted in `Props`.
 - `MyMCP.init()` registers tools conditionally — customer tools for `customer`, F2B tools (this PR) for `freelancer`.
 - New `src/tools/f2b/` module: `clients.ts` (4 tools), `invoices.ts` (5 tools), `shared.ts` (currency mapping, enums, helpers).
@@ -23,12 +24,14 @@
 ## File Structure
 
 **New files in `mcp_mellow`:**
+
 - `src/tools/f2b/shared.ts` — currency mapping, status enums, measure enum, common Zod schemas
 - `src/tools/f2b/clients.ts` — `registerF2bClientTools(server, client)` exporting 4 client tools
 - `src/tools/f2b/invoices.ts` — `registerF2bInvoiceTools(server, client)` exporting 5 invoice tools
 - `docs/FREELANCER_GUIDE.md` — domain guide for freelancer-mode agents
 
 **Modified files in `mcp_mellow`:**
+
 - `src/mellow-client.ts` — read `X-Trace-Id` and `cf-ray` on error, include in throw message
 - `src/utils.ts` — add `userRole?: 'customer' | 'freelancer'` to `Props`
 - `src/mellow-handler.ts` — probe `GET /api/profile` after `/userinfo`, set `userRole` in props
@@ -40,6 +43,7 @@
 ## Task 1: Trace-id propagation in MellowClient
 
 **Files:**
+
 - Modify: `src/mellow-client.ts:74-77`
 
 - [ ] **Step 1: Update `request()` to read trace headers on non-2xx**
@@ -47,17 +51,13 @@
 Replace lines 74-77 in `src/mellow-client.ts`:
 
 ```ts
-    if (!response.ok) {
-      const text = await response.text();
-      const traceId = response.headers.get("x-trace-id");
-      const cfRay = response.headers.get("cf-ray");
-      const traceSuffix = traceId
-        ? ` [trace=${traceId}]`
-        : cfRay
-          ? ` [cf-ray=${cfRay}]`
-          : "";
-      throw new Error(`Mellow API ${method} ${path} failed (${response.status})${traceSuffix}: ${text}`);
-    }
+if (!response.ok) {
+  const text = await response.text();
+  const traceId = response.headers.get("x-trace-id");
+  const cfRay = response.headers.get("cf-ray");
+  const traceSuffix = traceId ? ` [trace=${traceId}]` : cfRay ? ` [cf-ray=${cfRay}]` : "";
+  throw new Error(`Mellow API ${method} ${path} failed (${response.status})${traceSuffix}: ${text}`);
+}
 ```
 
 - [ ] **Step 2: Run type check**
@@ -80,6 +80,7 @@ git commit -m "feat(client): surface X-Trace-Id and cf-ray in error messages"
 ## Task 2: Add `userRole` to Props and probe in OAuth callback
 
 **Files:**
+
 - Modify: `src/utils.ts:139-151` (`Props` type)
 - Modify: `src/mellow-handler.ts:170-196` (`/callback` handler)
 
@@ -117,58 +118,58 @@ export type Props = {
 In `src/mellow-handler.ts`, replace lines 169-196 (after the `/userinfo` block, before `completeAuthorization`):
 
 ```ts
-	// Fetch the user info from Mellow
-	const userResponse = await fetch(`${c.env.MELLOW_BASE_URL}/userinfo`, {
-		headers: {
-			Authorization: `Bearer ${tokens.accessToken}`,
-		},
-	});
-	if (!userResponse.ok) {
-		return c.text("Failed to fetch user info with JWT " + tokens.accessToken, 500);
-	}
-	const { sub, name, email } = await userResponse.json() as { sub: string; name: string; email: string };
+// Fetch the user info from Mellow
+const userResponse = await fetch(`${c.env.MELLOW_BASE_URL}/userinfo`, {
+  headers: {
+    Authorization: `Bearer ${tokens.accessToken}`,
+  },
+});
+if (!userResponse.ok) {
+  return c.text("Failed to fetch user info with JWT " + tokens.accessToken, 500);
+}
+const { sub, name, email } = (await userResponse.json()) as { sub: string; name: string; email: string };
 
-	// Probe Mellow API to determine account role. JWT does not carry the
-	// customer/freelancer distinction — we have to ask the API. On any
-	// failure, default to 'customer' to preserve existing behavior.
-	let userRole: "customer" | "freelancer" = "customer";
-	try {
-		const profileResponse = await fetch(`${c.env.MELLOW_API_BASE_URL}/profile`, {
-			headers: {
-				Authorization: `Bearer ${tokens.accessToken}`,
-				Accept: "application/json",
-			},
-		});
-		if (profileResponse.ok) {
-			const profile = await profileResponse.json() as { type?: string };
-			if (profile.type === "freelancer" || profile.type === "customer") {
-				userRole = profile.type;
-			}
-		} else {
-			console.warn(`/api/profile probe returned ${profileResponse.status}; defaulting role to 'customer'`);
-		}
-	} catch (err) {
-		console.warn(`/api/profile probe failed; defaulting role to 'customer':`, err);
-	}
+// Probe Mellow API to determine account role. JWT does not carry the
+// customer/freelancer distinction — we have to ask the API. On any
+// failure, default to 'customer' to preserve existing behavior.
+let userRole: "customer" | "freelancer" = "customer";
+try {
+  const profileResponse = await fetch(`${c.env.MELLOW_API_BASE_URL}/profile`, {
+    headers: {
+      Authorization: `Bearer ${tokens.accessToken}`,
+      Accept: "application/json",
+    },
+  });
+  if (profileResponse.ok) {
+    const profile = (await profileResponse.json()) as { type?: string };
+    if (profile.type === "freelancer" || profile.type === "customer") {
+      userRole = profile.type;
+    }
+  } else {
+    console.warn(`/api/profile probe returned ${profileResponse.status}; defaulting role to 'customer'`);
+  }
+} catch (err) {
+  console.warn(`/api/profile probe failed; defaulting role to 'customer':`, err);
+}
 
-	// Return back to the MCP client a new token
-	const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
-		metadata: {
-			label: name,
-		},
-		// This will be available on this.props inside MyMCP
-		props: {
-			accessToken: tokens.accessToken,
-			refreshToken: tokens.refreshToken,
-			email,
-			name,
-			sub,
-			userRole,
-		} as Props,
-		request: oauthReqInfo,
-		scope: oauthReqInfo.scope,
-		userId: sub,
-	});
+// Return back to the MCP client a new token
+const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
+  metadata: {
+    label: name,
+  },
+  // This will be available on this.props inside MyMCP
+  props: {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    email,
+    name,
+    sub,
+    userRole,
+  } as Props,
+  request: oauthReqInfo,
+  scope: oauthReqInfo.scope,
+  userId: sub,
+});
 ```
 
 - [ ] **Step 3: Run type check**
@@ -191,6 +192,7 @@ git commit -m "feat(auth): probe /api/profile and persist userRole in Props"
 ## Task 3: F2B shared module — currency mapping, enums, schemas
 
 **Files:**
+
 - Create: `src/tools/f2b/shared.ts`
 
 - [ ] **Step 1: Create `src/tools/f2b/shared.ts`**
@@ -255,36 +257,14 @@ export const F2B_CLIENT_STATUS = [
 export type F2bClientStatus = (typeof F2B_CLIENT_STATUS)[number];
 
 // Backend invoice status
-export const F2B_INVOICE_STATUS = [
-  "new",
-  "sent",
-  "payment_queued",
-  "paid",
-  "cancelled",
-] as const;
+export const F2B_INVOICE_STATUS = ["new", "sent", "payment_queued", "paid", "cancelled"] as const;
 export type F2bInvoiceStatus = (typeof F2B_INVOICE_STATUS)[number];
 
 // Acquiring transaction status (only meaningful when acquiringEnabled = true)
-export const F2B_ACQUIRING_STATUS = [
-  "notInitiated",
-  "initiated",
-  "completed",
-  "failed",
-] as const;
+export const F2B_ACQUIRING_STATUS = ["notInitiated", "initiated", "completed", "failed"] as const;
 
 // Line item measure (10 fixed values)
-export const F2B_MEASURE = [
-  "item",
-  "hour",
-  "day",
-  "week",
-  "month",
-  "kg",
-  "ton",
-  "liter",
-  "cubic_meter",
-  "km",
-] as const;
+export const F2B_MEASURE = ["item", "hour", "day", "week", "month", "kg", "ton", "liter", "cubic_meter", "km"] as const;
 
 // Reusable Zod schemas
 export const f2bCurrencyEnum = z.enum(["EUR", "USD"]);
@@ -294,19 +274,10 @@ export const f2bMeasureEnum = z.enum(F2B_MEASURE);
 export const f2bCommissionPayerEnum = z.enum(["freelancer", "customer"]);
 
 export const f2bLineItemSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(1024)
-    .describe("Line item label, no HTML, 1–1024 chars"),
+  name: z.string().min(1).max(1024).describe("Line item label, no HTML, 1–1024 chars"),
   quantity: z.number().positive().describe("Must be > 0"),
-  measure: f2bMeasureEnum.describe(
-    "One of: item, hour, day, week, month, kg, ton, liter, cubic_meter, km",
-  ),
-  price: z
-    .number()
-    .positive()
-    .describe("Unit price in client currency, must be > 0"),
+  measure: f2bMeasureEnum.describe("One of: item, hour, day, week, month, kg, ton, liter, cubic_meter, km"),
+  price: z.number().positive().describe("Unit price in client currency, must be > 0"),
 });
 
 export type F2bLineItem = z.infer<typeof f2bLineItemSchema>;
@@ -332,6 +303,7 @@ git commit -m "feat(f2b): add shared module — currency mapping, status enums, 
 ## Task 4: f2b_createClient tool
 
 **Files:**
+
 - Create: `src/tools/f2b/clients.ts`
 
 - [ ] **Step 1: Create `src/tools/f2b/clients.ts` with `f2b_createClient` only**
@@ -340,12 +312,7 @@ git commit -m "feat(f2b): add shared module — currency mapping, status enums, 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { asStructuredList, asStructuredObject, type MellowClient } from "../../mellow-client";
-import {
-  currencyToId,
-  f2bClientStatusEnum,
-  f2bCurrencyEnum,
-  mapCurrencyIdToCode,
-} from "./shared";
+import { currencyToId, f2bClientStatusEnum, f2bCurrencyEnum, mapCurrencyIdToCode } from "./shared";
 
 export function registerF2bClientTools(server: McpServer, client: MellowClient) {
   server.tool(
@@ -353,32 +320,15 @@ export function registerF2bClientTools(server: McpServer, client: MellowClient) 
     "Create a new F2B (freelancer-to-business) legal client. Currency (EUR or USD) is fixed at creation and cannot be changed later. Required: email, country (ISO-3166 alpha-2), currency. All other fields optional. Status starts as 'not_verified' — this does NOT block invoicing; verification triggers on the client's first payment attempt. The freelancer can immediately create and send invoices to a not_verified client. There is no contactName/phone in the F2B model — do not invent these fields.",
     {
       email: z.string().email().describe("Email where the invoice link will be sent"),
-      country: z
-        .string()
-        .length(2)
-        .describe("ISO-3166 alpha-2 country code, e.g. CY, US, DE"),
-      currency: f2bCurrencyEnum.describe(
-        "EUR or USD. Fixed at creation — invoices to this client must be in this currency.",
-      ),
+      country: z.string().length(2).describe("ISO-3166 alpha-2 country code, e.g. CY, US, DE"),
+      currency: f2bCurrencyEnum.describe("EUR or USD. Fixed at creation — invoices to this client must be in this currency."),
       companyName: z.string().optional().describe("Legal company name"),
-      regNumber: z
-        .string()
-        .max(30)
-        .optional()
-        .describe("Company registration number, ≤ 30 chars"),
-      vat: z
-        .string()
-        .optional()
-        .describe("VAT id (string identifier, not a percent rate)"),
+      regNumber: z.string().max(30).optional().describe("Company registration number, ≤ 30 chars"),
+      vat: z.string().optional().describe("VAT id (string identifier, not a percent rate)"),
       tin: z.string().optional().describe("Taxpayer identification number"),
       address: z.string().optional(),
       city: z.string().optional(),
-      region: z
-        .string()
-        .optional()
-        .describe(
-          "State/region. For country=US, must be a valid 2-letter state code.",
-        ),
+      region: z.string().optional().describe("State/region. For country=US, must be a valid 2-letter state code."),
       postalCode: z.string().optional(),
     },
     { title: "Create F2B client" },
@@ -396,10 +346,7 @@ export function registerF2bClientTools(server: McpServer, client: MellowClient) 
         region: params.region,
         postalCode: params.postalCode,
       };
-      const result = await client.post<unknown>(
-        "/freelancer/f2b/clients/legal",
-        body,
-      );
+      const result = await client.post<unknown>("/freelancer/f2b/clients/legal", body);
       const mapped = mapCurrencyIdToCode(result);
       return {
         structuredContent: asStructuredObject(mapped),
@@ -432,6 +379,7 @@ git commit -m "feat(f2b): add f2b_createClient tool"
 ## Task 5: f2b_listClients tool
 
 **Files:**
+
 - Modify: `src/tools/f2b/clients.ts` (add new `server.tool` block)
 
 - [ ] **Step 1: Append `f2b_listClients` to `registerF2bClientTools`**
@@ -439,59 +387,53 @@ git commit -m "feat(f2b): add f2b_createClient tool"
 Inside the `registerF2bClientTools` function in `src/tools/f2b/clients.ts`, after the `f2b_createClient` block, add:
 
 ```ts
-  server.tool(
-    "f2b_listClients",
-    "List F2B clients of the freelancer. Backend supports filtering by status[] only — search by name and date filters are NOT supported by the API; for search the agent must page through results and filter MCP-side by companyName. Returns clients with currency mapped to ISO code (EUR/USD).",
-    {
-      status: z
-        .union([f2bClientStatusEnum, z.array(f2bClientStatusEnum)])
-        .optional()
-        .describe(
-          "Filter by client status. Pass a single value or an array (OR semantics).",
-        ),
-      page: z.number().optional().describe("Page number (default: 1)"),
-      limit: z.number().optional().describe("Page size (backend default if omitted)"),
-    },
-    { title: "List F2B clients", readOnlyHint: true },
-    async (params) => {
-      const queryParams: Record<string, string | undefined> = {
-        page: params.page?.toString(),
-        limit: params.limit?.toString(),
-      };
-      const statuses = Array.isArray(params.status)
-        ? params.status
-        : params.status
-          ? [params.status]
-          : [];
-      for (const s of statuses) {
-        // Bracketed multi-value query param convention used across this MCP
-        // Each push overwrites the same key; backend-side filter[status][]= works.
-        // We collect them as separate URLSearchParams via `MellowClient`.
-        // Workaround: encode each unique key suffix.
-        // Simpler: rely on URLSearchParams.append by passing an array via repeated key.
-        // MellowClient.get takes Record<string, string|undefined> which uses .set()
-        // — set() overwrites. So we use an indexed key form that the bracket
-        // filter parser accepts the LAST value, which is wrong for OR.
-        // Fix: build the URL manually for multi-status. See implementation below.
-        void s;
-      }
-      // For multi-value filter[status][], MellowClient's params object can't
-      // express duplicate keys (it uses .set()). Build query string manually.
-      const search = new URLSearchParams();
-      if (params.page !== undefined) search.set("page", params.page.toString());
-      if (params.limit !== undefined) search.set("limit", params.limit.toString());
-      for (const s of statuses) {
-        search.append("filter[status][]", s);
-      }
-      const path = `/freelancer/f2b/clients${search.toString() ? `?${search.toString()}` : ""}`;
-      const result = await client.get<unknown>(path);
-      const mapped = mapCurrencyIdToCode(result);
-      return {
-        structuredContent: asStructuredList(mapped),
-        content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
-      };
-    },
-  );
+server.tool(
+  "f2b_listClients",
+  "List F2B clients of the freelancer. Backend supports filtering by status[] only — search by name and date filters are NOT supported by the API; for search the agent must page through results and filter MCP-side by companyName. Returns clients with currency mapped to ISO code (EUR/USD).",
+  {
+    status: z
+      .union([f2bClientStatusEnum, z.array(f2bClientStatusEnum)])
+      .optional()
+      .describe("Filter by client status. Pass a single value or an array (OR semantics)."),
+    page: z.number().optional().describe("Page number (default: 1)"),
+    limit: z.number().optional().describe("Page size (backend default if omitted)"),
+  },
+  { title: "List F2B clients", readOnlyHint: true },
+  async (params) => {
+    const queryParams: Record<string, string | undefined> = {
+      page: params.page?.toString(),
+      limit: params.limit?.toString(),
+    };
+    const statuses = Array.isArray(params.status) ? params.status : params.status ? [params.status] : [];
+    for (const s of statuses) {
+      // Bracketed multi-value query param convention used across this MCP
+      // Each push overwrites the same key; backend-side filter[status][]= works.
+      // We collect them as separate URLSearchParams via `MellowClient`.
+      // Workaround: encode each unique key suffix.
+      // Simpler: rely on URLSearchParams.append by passing an array via repeated key.
+      // MellowClient.get takes Record<string, string|undefined> which uses .set()
+      // — set() overwrites. So we use an indexed key form that the bracket
+      // filter parser accepts the LAST value, which is wrong for OR.
+      // Fix: build the URL manually for multi-status. See implementation below.
+      void s;
+    }
+    // For multi-value filter[status][], MellowClient's params object can't
+    // express duplicate keys (it uses .set()). Build query string manually.
+    const search = new URLSearchParams();
+    if (params.page !== undefined) search.set("page", params.page.toString());
+    if (params.limit !== undefined) search.set("limit", params.limit.toString());
+    for (const s of statuses) {
+      search.append("filter[status][]", s);
+    }
+    const path = `/freelancer/f2b/clients${search.toString() ? `?${search.toString()}` : ""}`;
+    const result = await client.get<unknown>(path);
+    const mapped = mapCurrencyIdToCode(result);
+    return {
+      structuredContent: asStructuredList(mapped),
+      content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
+    };
+  },
+);
 ```
 
 - [ ] **Step 2: Run type check**
@@ -514,6 +456,7 @@ git commit -m "feat(f2b): add f2b_listClients tool with status[] filter support"
 ## Task 6: f2b_updateClient tool
 
 **Files:**
+
 - Modify: `src/tools/f2b/clients.ts`
 
 - [ ] **Step 1: Append `f2b_updateClient` to `registerF2bClientTools`**
@@ -521,39 +464,36 @@ git commit -m "feat(f2b): add f2b_listClients tool with status[] filter support"
 After `f2b_listClients`:
 
 ```ts
-  server.tool(
-    "f2b_updateClient",
-    "Update an existing F2B client. The client's currency and type are immutable — the backend has no field for them in PUT. All address fields, email, country, companyName, regNumber, vat, tin are mutable.",
-    {
-      clientId: z.number().int().describe("Numeric client ID returned by f2b_createClient"),
-      email: z.string().email().optional(),
-      country: z.string().length(2).optional().describe("ISO-3166 alpha-2"),
-      companyName: z.string().optional(),
-      regNumber: z.string().max(30).optional(),
-      vat: z.string().optional(),
-      tin: z.string().optional(),
-      address: z.string().optional(),
-      city: z.string().optional(),
-      region: z.string().optional(),
-      postalCode: z.string().optional(),
-    },
-    { title: "Update F2B client" },
-    async (params) => {
-      const body: Record<string, unknown> = { clientId: params.clientId };
-      for (const [k, v] of Object.entries(params)) {
-        if (k !== "clientId" && v !== undefined) body[k] = v;
-      }
-      const result = await client.put<unknown>(
-        "/freelancer/f2b/clients/legal",
-        body,
-      );
-      const mapped = mapCurrencyIdToCode(result);
-      return {
-        structuredContent: asStructuredObject(mapped),
-        content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
-      };
-    },
-  );
+server.tool(
+  "f2b_updateClient",
+  "Update an existing F2B client. The client's currency and type are immutable — the backend has no field for them in PUT. All address fields, email, country, companyName, regNumber, vat, tin are mutable.",
+  {
+    clientId: z.number().int().describe("Numeric client ID returned by f2b_createClient"),
+    email: z.string().email().optional(),
+    country: z.string().length(2).optional().describe("ISO-3166 alpha-2"),
+    companyName: z.string().optional(),
+    regNumber: z.string().max(30).optional(),
+    vat: z.string().optional(),
+    tin: z.string().optional(),
+    address: z.string().optional(),
+    city: z.string().optional(),
+    region: z.string().optional(),
+    postalCode: z.string().optional(),
+  },
+  { title: "Update F2B client" },
+  async (params) => {
+    const body: Record<string, unknown> = { clientId: params.clientId };
+    for (const [k, v] of Object.entries(params)) {
+      if (k !== "clientId" && v !== undefined) body[k] = v;
+    }
+    const result = await client.put<unknown>("/freelancer/f2b/clients/legal", body);
+    const mapped = mapCurrencyIdToCode(result);
+    return {
+      structuredContent: asStructuredObject(mapped),
+      content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
+    };
+  },
+);
 ```
 
 - [ ] **Step 2: Run type check**
@@ -576,6 +516,7 @@ git commit -m "feat(f2b): add f2b_updateClient tool (currency immutable)"
 ## Task 7: f2b_archiveClient tool
 
 **Files:**
+
 - Modify: `src/tools/f2b/clients.ts`
 
 - [ ] **Step 1: Append `f2b_archiveClient` to `registerF2bClientTools`**
@@ -625,6 +566,7 @@ git commit -m "feat(f2b): add f2b_archiveClient tool"
 ## Task 8: f2b_createInvoiceDraft tool (composite)
 
 **Files:**
+
 - Create: `src/tools/f2b/invoices.ts`
 
 - [ ] **Step 1: Create `src/tools/f2b/invoices.ts` with `f2b_createInvoiceDraft`**
@@ -633,12 +575,7 @@ git commit -m "feat(f2b): add f2b_archiveClient tool"
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { asStructuredList, asStructuredObject, type MellowClient } from "../../mellow-client";
-import {
-  f2bCommissionPayerEnum,
-  f2bInvoiceStatusEnum,
-  f2bLineItemSchema,
-  mapCurrencyIdToCode,
-} from "./shared";
+import { f2bCommissionPayerEnum, f2bInvoiceStatusEnum, f2bLineItemSchema, mapCurrencyIdToCode } from "./shared";
 
 export function registerF2bInvoiceTools(server: McpServer, client: MellowClient) {
   server.tool(
@@ -646,26 +583,13 @@ export function registerF2bInvoiceTools(server: McpServer, client: MellowClient)
     "Create an F2B invoice in draft status (`new`). Email is NOT sent yet — this is the 'preview' half of the mandatory two-step send pattern. Currency is derived from the client (set at f2b_createClient). Composite under the hood: GET client → POST /calculate-cost → POST /v2/invoices. Returns breakdown (subtotal, commissionPercent, commissionAmount, salesTax, total, payable). Public payment URL does NOT exist until f2b_sendInvoiceDraft. Backend limits: ≤ 10 line items, total amount ≤ 10 000 in client currency, invoiceDate ≤ today.",
     {
       clientId: z.number().int().describe("Target F2B client (currency derived from client)"),
-      serviceId: z
-        .number()
-        .int()
-        .describe("Service catalog id from Mellow service taxonomy"),
-      serviceName: z
-        .string()
-        .min(1)
-        .max(1024)
-        .describe("Service description, no HTML; appears on the invoice as the main title"),
-      serviceStartDate: z
-        .string()
-        .describe("ISO date (YYYY-MM-DD) — start of the period the service covers"),
+      serviceId: z.number().int().describe("Service catalog id from Mellow service taxonomy"),
+      serviceName: z.string().min(1).max(1024).describe("Service description, no HTML; appears on the invoice as the main title"),
+      serviceStartDate: z.string().describe("ISO date (YYYY-MM-DD) — start of the period the service covers"),
       serviceEndDate: z
         .string()
-        .describe(
-          "ISO date — end of the service period; ALSO doubles as the de-facto due date since API has no separate dueDate field",
-        ),
-      invoiceDate: z
-        .string()
-        .describe("ISO date — issuance date; must be ≤ today (backend rejects future dates with 422)"),
+        .describe("ISO date — end of the service period; ALSO doubles as the de-facto due date since API has no separate dueDate field"),
+      invoiceDate: z.string().describe("ISO date — issuance date; must be ≤ today (backend rejects future dates with 422)"),
       lineItems: z
         .array(f2bLineItemSchema)
         .min(1)
@@ -684,9 +608,7 @@ export function registerF2bInvoiceTools(server: McpServer, client: MellowClient)
     { title: "Create F2B invoice draft" },
     async (params) => {
       // 1. Resolve client to derive currencyId
-      const clientObj = (await client.get<{ currencyId: number; status: string }>(
-        `/freelancer/f2b/clients/${params.clientId}`,
-      ));
+      const clientObj = await client.get<{ currencyId: number; status: string }>(`/freelancer/f2b/clients/${params.clientId}`);
       if (clientObj.status === "archived" || clientObj.status === "suspended") {
         throw new Error(
           `F2B client ${params.clientId} is in status '${clientObj.status}'; cannot create invoice. Archive a client only AFTER all open invoices are settled.`,
@@ -705,10 +627,7 @@ export function registerF2bInvoiceTools(server: McpServer, client: MellowClient)
       //    create endpoint be the source of truth for the breakdown.
       let preview: unknown = null;
       try {
-        preview = await client.post<unknown>(
-          "/freelancer/f2b/invoices/calculate-cost",
-          baseBody,
-        );
+        preview = await client.post<unknown>("/freelancer/f2b/invoices/calculate-cost", baseBody);
       } catch (err) {
         console.warn("F2B calculate-cost preview failed:", err);
       }
@@ -756,6 +675,7 @@ git commit -m "feat(f2b): add f2b_createInvoiceDraft (composite: getClient → c
 ## Task 9: f2b_sendInvoiceDraft tool
 
 **Files:**
+
 - Modify: `src/tools/f2b/invoices.ts`
 
 - [ ] **Step 1: Append `f2b_sendInvoiceDraft` to `registerF2bInvoiceTools`**
@@ -763,25 +683,22 @@ git commit -m "feat(f2b): add f2b_createInvoiceDraft (composite: getClient → c
 Inside `registerF2bInvoiceTools`, after `f2b_createInvoiceDraft`:
 
 ```ts
-  server.tool(
-    "f2b_sendInvoiceDraft",
-    "Send a previously created F2B invoice draft to the client. Triggers email to client.email and exposes the public paymentUrl. Transitions invoice from 'new' → 'sent'. Backend returns 422 if invoice is not in 'new', or if client.status ∈ {archived, suspended}. AGENT confirmation rule applies: confirm subtotal/total/client with the user before calling this — after this call the email is out and clients see the invoice.",
-    {
-      invoiceId: z.number().int().describe("Numeric invoice id from f2b_createInvoiceDraft"),
-    },
-    { title: "Send F2B invoice draft" },
-    async ({ invoiceId }) => {
-      const result = await client.post<unknown>(
-        "/freelancer/f2b/invoices/send",
-        { invoiceId },
-      );
-      const mapped = mapCurrencyIdToCode(result);
-      return {
-        structuredContent: asStructuredObject(mapped),
-        content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
-      };
-    },
-  );
+server.tool(
+  "f2b_sendInvoiceDraft",
+  "Send a previously created F2B invoice draft to the client. Triggers email to client.email and exposes the public paymentUrl. Transitions invoice from 'new' → 'sent'. Backend returns 422 if invoice is not in 'new', or if client.status ∈ {archived, suspended}. AGENT confirmation rule applies: confirm subtotal/total/client with the user before calling this — after this call the email is out and clients see the invoice.",
+  {
+    invoiceId: z.number().int().describe("Numeric invoice id from f2b_createInvoiceDraft"),
+  },
+  { title: "Send F2B invoice draft" },
+  async ({ invoiceId }) => {
+    const result = await client.post<unknown>("/freelancer/f2b/invoices/send", { invoiceId });
+    const mapped = mapCurrencyIdToCode(result);
+    return {
+      structuredContent: asStructuredObject(mapped),
+      content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
+    };
+  },
+);
 ```
 
 - [ ] **Step 2: Run type check**
@@ -804,6 +721,7 @@ git commit -m "feat(f2b): add f2b_sendInvoiceDraft tool"
 ## Task 10: f2b_getInvoice tool (composite, optional acquiring fetch)
 
 **Files:**
+
 - Modify: `src/tools/f2b/invoices.ts`
 
 - [ ] **Step 1: Append `f2b_getInvoice` to `registerF2bInvoiceTools`**
@@ -811,45 +729,39 @@ git commit -m "feat(f2b): add f2b_sendInvoiceDraft tool"
 After `f2b_sendInvoiceDraft`:
 
 ```ts
-  server.tool(
-    "f2b_getInvoice",
-    "Get one F2B invoice with full details. If acquiringEnabled = true and status ∈ {sent, payment_queued}, additionally fetches the public /payment-status endpoint to surface the acquiring transaction state ('notInitiated' | 'initiated' | 'completed' | 'failed'). For bank-transfer invoices, paymentStatus is omitted — rely on invoice.status.",
-    {
-      invoiceId: z.number().int().describe("Numeric invoice id"),
-    },
-    { title: "Get F2B invoice", readOnlyHint: true },
-    async ({ invoiceId }) => {
-      const invoice = (await client.get<{
+server.tool(
+  "f2b_getInvoice",
+  "Get one F2B invoice with full details. If acquiringEnabled = true and status ∈ {sent, payment_queued}, additionally fetches the public /payment-status endpoint to surface the acquiring transaction state ('notInitiated' | 'initiated' | 'completed' | 'failed'). For bank-transfer invoices, paymentStatus is omitted — rely on invoice.status.",
+  {
+    invoiceId: z.number().int().describe("Numeric invoice id"),
+  },
+  { title: "Get F2B invoice", readOnlyHint: true },
+  async ({ invoiceId }) => {
+    const invoice = await client.get<
+      {
         uuid?: string;
         status?: string;
         acquiringEnabled?: boolean;
-      } & Record<string, unknown>>(`/freelancer/f2b/invoices/${invoiceId}`));
+      } & Record<string, unknown>
+    >(`/freelancer/f2b/invoices/${invoiceId}`);
 
-      let paymentStatus: unknown = undefined;
-      if (
-        invoice.acquiringEnabled &&
-        invoice.uuid &&
-        (invoice.status === "sent" || invoice.status === "payment_queued")
-      ) {
-        try {
-          paymentStatus = await client.get<unknown>(
-            `/f2b/invoices/payment-status/${invoice.uuid}`,
-          );
-        } catch (err) {
-          console.warn("F2B payment-status fetch failed:", err);
-        }
+    let paymentStatus: unknown = undefined;
+    if (invoice.acquiringEnabled && invoice.uuid && (invoice.status === "sent" || invoice.status === "payment_queued")) {
+      try {
+        paymentStatus = await client.get<unknown>(`/f2b/invoices/payment-status/${invoice.uuid}`);
+      } catch (err) {
+        console.warn("F2B payment-status fetch failed:", err);
       }
+    }
 
-      const merged = paymentStatus !== undefined
-        ? { ...invoice, paymentStatus }
-        : invoice;
-      const mapped = mapCurrencyIdToCode(merged);
-      return {
-        structuredContent: asStructuredObject(mapped),
-        content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
-      };
-    },
-  );
+    const merged = paymentStatus !== undefined ? { ...invoice, paymentStatus } : invoice;
+    const mapped = mapCurrencyIdToCode(merged);
+    return {
+      structuredContent: asStructuredObject(mapped),
+      content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
+    };
+  },
+);
 ```
 
 - [ ] **Step 2: Run type check**
@@ -872,6 +784,7 @@ git commit -m "feat(f2b): add f2b_getInvoice with optional acquiring payment-sta
 ## Task 11: f2b_listInvoices tool
 
 **Files:**
+
 - Modify: `src/tools/f2b/invoices.ts`
 
 - [ ] **Step 1: Append `f2b_listInvoices` to `registerF2bInvoiceTools`**
@@ -879,39 +792,35 @@ git commit -m "feat(f2b): add f2b_getInvoice with optional acquiring payment-sta
 After `f2b_getInvoice`:
 
 ```ts
-  server.tool(
-    "f2b_listInvoices",
-    "List F2B invoices of the freelancer. Backend supports status[] filter only; clientId and date-range filters are NOT supported by the API and must be applied MCP-side after the fetch. Returns currency mapped to ISO code.",
-    {
-      status: z
-        .union([f2bInvoiceStatusEnum, z.array(f2bInvoiceStatusEnum)])
-        .optional()
-        .describe("Filter by invoice status. Single value or array (OR semantics)."),
-      page: z.number().optional().describe("Page number (default: 1)"),
-      limit: z.number().optional().describe("Page size (backend default if omitted)"),
-    },
-    { title: "List F2B invoices", readOnlyHint: true },
-    async (params) => {
-      const search = new URLSearchParams();
-      if (params.page !== undefined) search.set("page", params.page.toString());
-      if (params.limit !== undefined) search.set("limit", params.limit.toString());
-      const statuses = Array.isArray(params.status)
-        ? params.status
-        : params.status
-          ? [params.status]
-          : [];
-      for (const s of statuses) {
-        search.append("filter[status][]", s);
-      }
-      const path = `/freelancer/f2b/invoices${search.toString() ? `?${search.toString()}` : ""}`;
-      const result = await client.get<unknown>(path);
-      const mapped = mapCurrencyIdToCode(result);
-      return {
-        structuredContent: asStructuredList(mapped),
-        content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
-      };
-    },
-  );
+server.tool(
+  "f2b_listInvoices",
+  "List F2B invoices of the freelancer. Backend supports status[] filter only; clientId and date-range filters are NOT supported by the API and must be applied MCP-side after the fetch. Returns currency mapped to ISO code.",
+  {
+    status: z
+      .union([f2bInvoiceStatusEnum, z.array(f2bInvoiceStatusEnum)])
+      .optional()
+      .describe("Filter by invoice status. Single value or array (OR semantics)."),
+    page: z.number().optional().describe("Page number (default: 1)"),
+    limit: z.number().optional().describe("Page size (backend default if omitted)"),
+  },
+  { title: "List F2B invoices", readOnlyHint: true },
+  async (params) => {
+    const search = new URLSearchParams();
+    if (params.page !== undefined) search.set("page", params.page.toString());
+    if (params.limit !== undefined) search.set("limit", params.limit.toString());
+    const statuses = Array.isArray(params.status) ? params.status : params.status ? [params.status] : [];
+    for (const s of statuses) {
+      search.append("filter[status][]", s);
+    }
+    const path = `/freelancer/f2b/invoices${search.toString() ? `?${search.toString()}` : ""}`;
+    const result = await client.get<unknown>(path);
+    const mapped = mapCurrencyIdToCode(result);
+    return {
+      structuredContent: asStructuredList(mapped),
+      content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
+    };
+  },
+);
 ```
 
 - [ ] **Step 2: Run type check**
@@ -934,6 +843,7 @@ git commit -m "feat(f2b): add f2b_listInvoices with status[] filter"
 ## Task 12: f2b_cancelInvoice tool
 
 **Files:**
+
 - Modify: `src/tools/f2b/invoices.ts`
 
 - [ ] **Step 1: Append `f2b_cancelInvoice` to `registerF2bInvoiceTools`**
@@ -983,6 +893,7 @@ git commit -m "feat(f2b): add f2b_cancelInvoice tool"
 ## Task 13: Wire F2B tools into MyMCP with conditional registration
 
 **Files:**
+
 - Modify: `src/index.ts:1-76` (imports + `init()`)
 
 - [ ] **Step 1: Add F2B imports**
@@ -1075,6 +986,7 @@ git commit -m "feat(mcp): conditional tool registration based on userRole (custo
 ## Task 14: Add `mellow://freelancer-guide` resource and update register call
 
 **Files:**
+
 - Modify: `src/index.ts` (resource registration block, ~line 78–120)
 
 - [ ] **Step 1: Add the freelancer-guide resource alongside existing ones**
@@ -1092,63 +1004,62 @@ import FREELANCER_GUIDE_MD from "../docs/FREELANCER_GUIDE.md";
 In `init()`, after the role-conditional blocks but inside the `try`, add the resource registration:
 
 ```ts
-      this.server.registerResource(
-        "mellow-domain-guide",
-        "mellow://domain",
-        {
-          title: "Mellow Domain Guide",
-          description:
-            "Full domain reference for agents working with the Mellow & Scout MCP: actors, products (CoR + AI Scout), state machines, preconditions, decision trees. Read before producing tool calls for unfamiliar flows.",
-          mimeType: "text/markdown",
-        },
-        async (uri) => ({
-          contents: [{ uri: uri.href, mimeType: "text/markdown", text: DOMAIN_MD }],
-        }),
-      );
+this.server.registerResource(
+  "mellow-domain-guide",
+  "mellow://domain",
+  {
+    title: "Mellow Domain Guide",
+    description:
+      "Full domain reference for agents working with the Mellow & Scout MCP: actors, products (CoR + AI Scout), state machines, preconditions, decision trees. Read before producing tool calls for unfamiliar flows.",
+    mimeType: "text/markdown",
+  },
+  async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "text/markdown", text: DOMAIN_MD }],
+  }),
+);
 
-      this.server.registerResource(
-        "mellow-workflows",
-        "mellow://workflows",
-        {
-          title: "Mellow Workflows (12 end-to-end recipes)",
-          description:
-            "End-to-end recipes: onboarding + first task, accept-and-pay (two-step), Scout hire, multi-currency, bulk invite, bulk task creation, etc. Each recipe lists preconditions, concrete tool sequence, error handling, and 'done when' criteria.",
-          mimeType: "text/markdown",
-        },
-        async (uri) => ({
-          contents: [{ uri: uri.href, mimeType: "text/markdown", text: WORKFLOWS_MD }],
-        }),
-      );
+this.server.registerResource(
+  "mellow-workflows",
+  "mellow://workflows",
+  {
+    title: "Mellow Workflows (12 end-to-end recipes)",
+    description:
+      "End-to-end recipes: onboarding + first task, accept-and-pay (two-step), Scout hire, multi-currency, bulk invite, bulk task creation, etc. Each recipe lists preconditions, concrete tool sequence, error handling, and 'done when' criteria.",
+    mimeType: "text/markdown",
+  },
+  async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "text/markdown", text: WORKFLOWS_MD }],
+  }),
+);
 
-      this.server.registerResource(
-        "mellow-anti-patterns",
-        "mellow://anti-patterns",
-        {
-          title: "Mellow Anti-patterns (common agent mistakes)",
-          description:
-            "Catalogue of common agent mistakes when driving the MCP, with corrected patterns. Bad / Why / Good per entry.",
-          mimeType: "text/markdown",
-        },
-        async (uri) => ({
-          contents: [{ uri: uri.href, mimeType: "text/markdown", text: ANTI_PATTERNS_MD }],
-        }),
-      );
+this.server.registerResource(
+  "mellow-anti-patterns",
+  "mellow://anti-patterns",
+  {
+    title: "Mellow Anti-patterns (common agent mistakes)",
+    description: "Catalogue of common agent mistakes when driving the MCP, with corrected patterns. Bad / Why / Good per entry.",
+    mimeType: "text/markdown",
+  },
+  async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "text/markdown", text: ANTI_PATTERNS_MD }],
+  }),
+);
 
-      if (userRole === "freelancer") {
-        this.server.registerResource(
-          "mellow-freelancer-guide",
-          "mellow://freelancer-guide",
-          {
-            title: "Mellow Freelancer Guide (F2B and freelancer-side flows)",
-            description:
-              "Domain reference for agents operating in freelancer mode: F2B client lifecycle, invoice statuses, two-step send invariant, error semantics, and decision trees for typical flows. Read at session start when userRole=freelancer.",
-            mimeType: "text/markdown",
-          },
-          async (uri) => ({
-            contents: [{ uri: uri.href, mimeType: "text/markdown", text: FREELANCER_GUIDE_MD }],
-          }),
-        );
-      }
+if (userRole === "freelancer") {
+  this.server.registerResource(
+    "mellow-freelancer-guide",
+    "mellow://freelancer-guide",
+    {
+      title: "Mellow Freelancer Guide (F2B and freelancer-side flows)",
+      description:
+        "Domain reference for agents operating in freelancer mode: F2B client lifecycle, invoice statuses, two-step send invariant, error semantics, and decision trees for typical flows. Read at session start when userRole=freelancer.",
+      mimeType: "text/markdown",
+    },
+    async (uri) => ({
+      contents: [{ uri: uri.href, mimeType: "text/markdown", text: FREELANCER_GUIDE_MD }],
+    }),
+  );
+}
 ```
 
 - [ ] **Step 2: Wrangler text loader**
@@ -1184,13 +1095,14 @@ git commit -m "feat(mcp): register mellow://freelancer-guide resource for freela
 ## Task 15: Write FREELANCER_GUIDE.md content
 
 **Files:**
+
 - Modify: `docs/FREELANCER_GUIDE.md` (replace placeholder from Task 14 with real content)
 
 - [ ] **Step 1: Replace placeholder with full guide**
 
 Overwrite `docs/FREELANCER_GUIDE.md` with the following:
 
-````markdown
+```markdown
 # Mellow Freelancer Guide
 
 You are operating in freelancer mode (`userRole=freelancer`). The Mellow account that authorized this MCP session belongs to a freelancer / self-employed contractor. Customer-side tools (tasks, scout hiring, etc.) are NOT available; backend `/api/customer/*` endpoints would 403 anyway.
@@ -1269,7 +1181,7 @@ Backend returns the breakdown — never compute it locally.
 ## Confirmation rule (recap)
 
 Before any mutating call (`createClient`, `updateClient`, `archiveClient`, `createInvoiceDraft`, `sendInvoiceDraft`, `cancelInvoice`), restate the entity ID + parameters and get a clear "yes" from the user. `sendInvoiceDraft` is the most consequential call — once sent, the email is in the client's inbox and you can only `cancelInvoice` (which clients are also notified of).
-````
+```
 
 - [ ] **Step 2: Run type check**
 
@@ -1291,6 +1203,7 @@ git commit -m "docs(f2b): add freelancer guide with F2B domain, statuses, limits
 ## Task 16: AGENT_PRIMER opening behavior + freelancer-guide pointer
 
 **Files:**
+
 - Modify: `src/agent-primer.ts`
 
 - [ ] **Step 1: Append opening behavior + role section**
@@ -1366,6 +1279,7 @@ Connect MCP Inspector under a freelancer account, run the 5 canonical flows from
 - [ ] **Cross-task consistency:**
 
 Verify these names are identical wherever they appear:
+
 - `userRole: "customer" | "freelancer"` (Props, primer, init)
 - `f2bCommissionPayerEnum` values: `"freelancer" | "customer"` (NOT `"client"`)
 - F2B path prefix: `/freelancer/f2b/...` (no leading `/api`)
