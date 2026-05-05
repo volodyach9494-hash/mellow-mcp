@@ -68,4 +68,43 @@ export function registerF2bClientTools(server: McpServer, client: MellowClient) 
       };
     },
   );
+
+  server.tool(
+    "f2b_listClients",
+    "List F2B clients of the freelancer. Backend supports filter[status][] only — search by name and date filters are NOT supported by the API; for search the agent must page through results and filter MCP-side by companyName. Returns clients with currency mapped to ISO code (EUR/USD).",
+    {
+      status: z
+        .union([f2bClientStatusEnum, z.array(f2bClientStatusEnum)])
+        .optional()
+        .describe(
+          "Filter by client status. Pass a single value or an array (OR semantics).",
+        ),
+      page: z.number().optional().describe("Page number (default: 1)"),
+      limit: z.number().optional().describe("Page size (backend default if omitted)"),
+    },
+    { title: "List F2B clients", readOnlyHint: true },
+    async (params) => {
+      // Backend expects filter[status][]= repeated for OR semantics.
+      // MellowClient.params uses URLSearchParams.set() which can't represent
+      // duplicate keys — build the query string manually.
+      const search = new URLSearchParams();
+      if (params.page !== undefined) search.set("page", params.page.toString());
+      if (params.limit !== undefined) search.set("limit", params.limit.toString());
+      const statuses = Array.isArray(params.status)
+        ? params.status
+        : params.status
+          ? [params.status]
+          : [];
+      for (const s of statuses) {
+        search.append("filter[status][]", s);
+      }
+      const path = `/freelancer/f2b/clients${search.toString() ? `?${search.toString()}` : ""}`;
+      const result = await client.get<unknown>(path);
+      const mapped = mapCurrencyIdToCode(result);
+      return {
+        structuredContent: asStructuredList(mapped),
+        content: [{ text: JSON.stringify(mapped, null, 2), type: "text" as const }],
+      };
+    },
+  );
 }
